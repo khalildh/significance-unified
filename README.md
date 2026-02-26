@@ -103,6 +103,52 @@ Every essential definition automatically licenses classical syllogistic inferenc
 
 The connection is direct: a good definition *is* a package of valid syllogisms. The definition of Man doesn't just classify — it licenses inference.
 
+## The square of opposition
+
+The formalization defines the four categorical propositions and proves all six classical relationships between them:
+
+- **PropA** (universal affirmative): All S are P — `S ≤ P`
+- **PropE** (universal negative): No S are P — `∀ a, S.pred a → ¬P.pred a`
+- **PropI** (particular affirmative): Some S are P — `∃ a, S.pred a ∧ P.pred a`
+- **PropO** (particular negative): Some S are not P — `∃ a, S.pred a ∧ ¬P.pred a`
+
+The relationships:
+
+- **Contradiction**: A ↔ ¬O and E ↔ ¬I. The E-I contradiction is fully constructive; A-O needs Classical for the ¬O → A direction (double negation elimination on `P.pred a`).
+- **Contrariety**: A and E cannot both hold when S is non-empty.
+- **Subalternation**: A → I and E → O, both requiring a non-empty subject. For essentially defined concepts, the CCD witness provides the existential automatically — subalternation always fires.
+- **Subcontrariety**: I and O cannot both fail when S is non-empty. The proof is constructive: ¬I gives ¬P.pred a, ¬O gives ¬¬P.pred a, contradiction.
+
+## Complete syllogistic
+
+The formalization proves all 15 unconditionally valid syllogistic moods across all four figures, plus 4 moods requiring existential import — the entire classical syllogistic as a verified consequence of the concept preorder. Every proof is 2-3 lines.
+
+| Figure | Mood | Type | Notes |
+|--------|------|------|-------|
+| 1 | Barbara (AAA) | A | Transitivity of ≤ |
+| 1 | Celarent (EAE) | A | |
+| 1 | Darii (AII) | A | |
+| 1 | Ferio (EIO) | A | |
+| 2 | Cesare (EAE) | A | |
+| 2 | Camestres (AEE) | A | |
+| 2 | Festino (EIO) | A | |
+| 2 | Baroco (AOO) | A | Traditionally needs reductio; direct here |
+| 3 | Disamis (IAI) | A | |
+| 3 | Datisi (AII) | A | |
+| 3 | Bocardo (OAO) | A | Traditionally needs reductio; direct here |
+| 3 | Ferison (EIO) | A | |
+| 4 | Camenes (AEE) | A | |
+| 4 | Dimaris (IAI) | A | |
+| 4 | Fresison (EIO) | A | |
+| 3 | Darapti (AAI) | E | Requires non-empty M |
+| 3 | Felapton (EAO) | E | Requires non-empty M |
+| 4 | Bramantip (AAI) | E | Requires non-empty P |
+| 4 | Fesapo (EAO) | E | Requires non-empty M |
+
+Type A = unconditionally valid. Type E = requires existential import.
+
+Baroco and Bocardo are notable: traditional logic proves them by *reductio ad absurdum*, but in this formalization they are direct — destructure the existential witness and apply the universal premise. No contradiction needed.
+
 ## Surprising consequences
 
 The formalization derives several results that are **stated as rules or principles** in the philosophical literature but have never been **proved as theorems** from a common foundation. These are in `Consequences.lean`.
@@ -245,7 +291,7 @@ Level comparisons chain. This is Cicero's technique: build significance step by 
 ```
 SignificanceUnified/
 ├── Basic.lean          # Core formalization (sections 1–13)
-└── Consequences.lean   # Derived theorems (sections 14–17)
+└── Consequences.lean   # Derived theorems (sections 14–19)
 ```
 
 **Basic.lean** — the core formalization:
@@ -295,6 +341,29 @@ SignificanceUnified/
 | `depths_pairwise_distinct` | CCD witnesses give three distinct depth values, not just entities |
 | `depth_separates_units` | The depth scale genuinely separates units within every defined concept |
 | `ccd3_of_subsingleton` | Singletons satisfy CCD₃ vacuously but cannot be essentially defined |
+| `propA_iff_not_propO` | A and O are contradictories (Classical for one direction) |
+| `propE_iff_not_propI` | E and I are contradictories (fully constructive) |
+| `contrary` | A and E cannot both hold for non-empty subjects |
+| `subalternation_AI` | A → I when subject is non-empty |
+| `subalternation_EO` | E → O when subject is non-empty |
+| `subcontrary` | I and O cannot both fail for non-empty subjects |
+| `existential_import` | CCD witness guarantees non-empty definiendum |
+| `ferio` | Ferio (EIO-1) |
+| `cesare` | Cesare (EAE-2) |
+| `camestres` | Camestres (AEE-2) |
+| `festino` | Festino (EIO-2) |
+| `baroco` | Baroco (AOO-2) — direct, no reductio needed |
+| `disamis` | Disamis (IAI-3) |
+| `datisi` | Datisi (AII-3) |
+| `bocardo` | Bocardo (OAO-3) — direct, no reductio needed |
+| `ferison` | Ferison (EIO-3) |
+| `camenes` | Camenes (AEE-4) |
+| `dimaris` | Dimaris (IAI-4) |
+| `fresison` | Fresison (EIO-4) |
+| `darapti` | Darapti (AAI-3) — requires existential import |
+| `felapton` | Felapton (EAO-3) — requires existential import |
+| `bramantip` | Bramantip (AAI-4) — requires existential import |
+| `fesapo` | Fesapo (EAO-4) — requires existential import |
 
 ## Building
 
