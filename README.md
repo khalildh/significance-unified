@@ -103,6 +103,48 @@ Every essential definition automatically licenses classical syllogistic inferenc
 
 The connection is direct: a good definition *is* a package of valid syllogisms. The definition of Man doesn't just classify — it licenses inference.
 
+## Surprising consequences
+
+The formalization derives several results that are **stated as rules or principles** in the philosophical literature but have never been **proved as theorems** from a common foundation. These are in `Consequences.lean`.
+
+### Circular definitions are mathematically impossible
+
+`no_definition_cycle` — If essential definitions chain through their genus/differentia links (A's differentia is B's genus, B's differentia is C's genus, C's differentia loops back to A's genus), Lean proves `False`. The depth ordering would require `a < b < c < a` on ℤ, which is a contradiction.
+
+Aristotle prohibits circular definitions in the *Posterior Analytics* (I.3). Every logic textbook repeats this as a rule. Formal ontology literature describes genus-differentia hierarchies as directed acyclic graphs and treats acyclicity as a design constraint to be *imposed*.
+
+The formalization shows it is not a constraint you impose — it is a **consequence** you get for free. Once each definition carries a strict depth comparison (`genus.χ < differentia.χ`), circularity is impossible. The integers don't have cycles in their ordering. Aristotle's prohibition is not a methodological preference but a mathematical necessity.
+
+### "Everything" is not a concept
+
+`no_universal_ccd` — A concept whose predicate includes every entity of the type cannot satisfy CCD₃. There is nothing outside it to serve as a contrast witness.
+
+Aristotle says "being is not a genus." Rand treats "existence" as axiomatic, not formed by differentiation. These are presented as philosophical claims requiring argument. The formalization shows the impossibility is structural: if concepts require contrast-grounded differentiation, and a universal concept has no outsider, then it cannot be a concept. The debate is settled by the definition.
+
+### Concept-formation requires at least two instances
+
+`KonceptDef.has_two_units` — Every essential definition has at least two distinct units in the definiendum. Singleton concepts cannot be essentially defined.
+
+Rand states that abstraction requires "two or more concretes." She presents this as an epistemological observation about how the mind forms concepts. The formalization shows it is a logical necessity: the CCD witness must exhibit two distinct entities inside the concept. The type system will not let you construct a `KonceptDef` with fewer. What Rand stated as a claim about cognition is a constraint on the mathematical structure itself.
+
+### Definition chains compose
+
+`KonceptDef.chain` — If the differentia of one definition serves as the genus of a refinement (e.g., Man = Rational Animal, Philosopher = Contemplative Rational), then for any entity that is a unit of both, the total depth gain composes: contemplation > animality.
+
+This is not obvious because the two definitions use different characteristic functions. The theorem shows they compose **only when** the linking condition holds (`d2.genus = d1.differentia`), which forces the scales to agree at the junction. Without that identity, the definitions are incommensurable, and the type checker rejects the chain.
+
+### Genus and differentia never tie
+
+`KonceptDef.genus_lt_differentia` — In any essential definition, the genus and differentia have strictly different depths on every unit. A definition where they are equal on even one entity would mean the differentia adds nothing — it would be ornamental rather than explanatory.
+
+### Amplification is irreversible
+
+`AmplificationMove.irreversible` — If a rhetorical move raises the subject above the baseline, the reverse comparison cannot hold on the same scale. The asymmetry is structural: the integers do not allow `a < b` and `b < a` simultaneously.
+
+### The meta-point
+
+These six results were previously **separate doctrines** from different authors and different centuries — Aristotle's anti-circularity, Aristotle's "being is not a genus," Rand's "two or more concretes," the implicit compositionality of definitional hierarchies. The formalization shows they are all consequences of one thing: **essential definitions carry a strict depth comparison grounded in contrast**. That is the unification — not just Kennedy and Rand, but the downstream implications that were never connected before.
+
 ## Concrete examples
 
 ### Dogs, wolves, and cats (gap comparison)
@@ -144,21 +186,40 @@ Level comparisons chain. This is Cicero's technique: build significance step by 
 
 ## File structure
 
-| Section | Lines | Content |
-|---------|-------|---------|
-| 1 | 46–121 | `Raise`, `Gap`, `SimilarByContrast` — the two comparison primitives |
-| 2 | 140–200 | `Koncept`, `CCD₃`, `CCDWitness₃`, preorder instance, meet/join |
-| 3 | 230–256 | `KonceptDef` — essential definitions with CCD grounding |
-| 4 | 263–333 | `AmplificationMove` — Kennedy's rhetorical moves |
-| 5 | 340–368 | `SignificanceRaise` — the shared abstract structure |
-| 6 | 357–368 | Two total embeddings into `SignificanceRaise` |
-| 7 | 374–449 | `AmplificationOver`, round-trip proofs, unified significance theorem |
-| 8 | 459–474 | Example: dogs, wolves, cats (gap comparison) |
-| 9 | 483–558 | Example: Man = Rational Animal (level comparison) |
-| 10 | 565–583 | Cicero's argument chain (transitive composition) |
-| 11 | 610–648 | Classical syllogisms: Barbara, Celarent, Darii |
-| 12 | 660–683 | Syllogisms derived from essential definitions |
-| 13 | 690–723 | Concrete syllogisms: all men are animals, etc. |
+```
+SignificanceUnified/
+├── Basic.lean          # Core formalization (sections 1–13)
+└── Consequences.lean   # Derived theorems (section 14)
+```
+
+**Basic.lean** — the core formalization:
+
+| Section | Content |
+|---------|---------|
+| 1 | `Raise`, `Gap`, `SimilarByContrast` — the two comparison primitives |
+| 2 | `Koncept`, `CCD₃`, `CCDWitness₃`, preorder instance, meet/join |
+| 3 | `KonceptDef` — essential definitions with CCD grounding |
+| 4 | `AmplificationMove` — Kennedy's rhetorical moves |
+| 5 | `SignificanceRaise` — the shared abstract structure |
+| 6 | Two total embeddings into `SignificanceRaise` |
+| 7 | `AmplificationOver`, round-trip proofs, unified significance theorem |
+| 8 | Example: dogs, wolves, cats (gap comparison) |
+| 9 | Example: Man = Rational Animal (level comparison) |
+| 10 | Cicero's argument chain (transitive composition) |
+| 11 | Classical syllogisms: Barbara, Celarent, Darii |
+| 12 | Syllogisms derived from essential definitions |
+| 13 | Concrete syllogisms: all men are animals, etc. |
+
+**Consequences.lean** — surprising derived results:
+
+| Theorem | Content |
+|---------|---------|
+| `no_definition_cycle` | Circular definitions are impossible (3-cycle; generalizes to any length) |
+| `no_universal_ccd` | "Everything" cannot be a contrast-grounded concept |
+| `has_two_units` | Essential definitions require at least two distinct units |
+| `chain` | Definition hierarchies compose transitively |
+| `genus_lt_differentia` | Genus and differentia never have equal depth on any unit |
+| `irreversible` | Amplification cannot be reversed |
 
 ## Building
 
