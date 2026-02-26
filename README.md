@@ -161,9 +161,45 @@ This is not obvious because the two definitions use different characteristic fun
 
 `witness_not_implies_ccd3` — A concept can have a valid CCD witness for one pair of units without satisfying the full CCD₃ axiom across all pairs. The formalization constructs an explicit counterexample: a concept where two units are close enough for a witness, but a third unit is so far away that no outsider can bridge the gap. Whether full CCD₃ should be required is a genuine philosophical question the formalization leaves open.
 
+### Genus and differentia must be distinct
+
+`KonceptDef.genus_ne_differentia` — If genus = differentia, then `isEssential` would require `a < a` on ℤ, which is impossible. Essential definitions always involve genuinely different aspects of an entity.
+
+### Neither definiendum nor differentia can be universal
+
+`definiendum_not_universal` and `differentia_not_universal` — The CCD contrast witness lies outside the definiendum and lacks the differentia. Both the defined concept and its distinguishing property always genuinely exclude something.
+
+### Significance is quantized
+
+`amplification_min_quantum` — On ℤ, every strict raise increases the subject by at least 1 above the baseline. There is a smallest possible unit of amplification. If we used ℝ instead, raises could be arbitrarily small.
+
+### Gap comparison does not compose
+
+`similarity_not_transitive` — Level comparisons (Raise) compose transitively; gap comparisons (SimilarByContrast) do not. Concrete counterexample: 0 and 1 are similar vs 5, and 1 and 5 are similar vs 10, but 0 and 5 are NOT similar vs 10 (Gap(0,5) = Gap(5,10) = 5, violating strict inequality). This is the formal proof that the two comparison types have fundamentally different algebraic structure — the reason the formalization must keep them separate.
+
+### The concept preorder is genuinely a preorder
+
+`preorder_not_partial_order` — Two concepts with the same extension but different depth scales are mutually ≤ but not equal. The ordering sees only membership, not depths. This is by design: "all men are animals" is about which things fall under each concept, not about their characteristic values.
+
+### Similarity is about relative position
+
+`Gap.translate` and `SimilarByContrast.translate` — Gap and similarity are both translation-invariant. Adding the same constant to all depth values preserves which things are similar and which are different. The zero-point of the depth scale is conventional, not structural.
+
+### The contrast position is structurally distinguished
+
+`contrast_not_interchangeable` — You cannot swap a "similar" entity with the contrast entity and preserve the relation. Combined with `SimilarByContrast.symm` (swapping the two similar things is fine), this shows the relation has symmetry group S₂, not S₃. The outsider plays a genuinely different role from the insiders.
+
+### Concept formation needs three depth values
+
+`CCDWitness₃.depths_pairwise_distinct` and `KonceptDef.depth_separates_units` — CCD witnesses give three pairwise-distinct depth values, not just three distinct entities. The depth scale must have at least three positions. And within any defined concept, at least two units have different depths — the scale is non-degenerate.
+
+### CCD₃ is necessary but not sufficient for definability
+
+`ccd3_of_subsingleton` — A concept with at most one unit satisfies CCD₃ vacuously (there are never two distinct units to ask about). But such a concept cannot be essentially defined — `KonceptDef` requires a CCD witness with two distinct units. This reveals the gap between satisfying CCD₃ (which degenerate concepts do trivially) and being definable (which requires substantive grounding).
+
 ### The meta-point
 
-These twelve results were previously **separate doctrines** from different authors and different centuries — Aristotle's anti-circularity, Aristotle's "being is not a genus," Rand's "two or more concretes," the implicit compositionality of definitional hierarchies, the termination of definition chains, the non-uniqueness of definitions. The formalization shows they are all consequences of one thing: **essential definitions carry a strict depth comparison grounded in contrast**. That is the unification — not just Kennedy and Rand, but the downstream implications that were never connected before.
+These 27 results were previously **separate doctrines** from different authors and different centuries — Aristotle's anti-circularity, Aristotle's "being is not a genus," Rand's "two or more concretes," the compositionality and termination of definitional hierarchies, the non-uniqueness of definitions, the structural difference between level and gap comparisons, the distinguished role of the contrast witness, the translation invariance of similarity, and the quantization of significance. The formalization shows they are all consequences of one thing: **essential definitions carry a strict depth comparison grounded in contrast on an integer scale**. That is the unification — not just Kennedy and Rand, but the downstream implications that were never connected before.
 
 ## Concrete examples
 
@@ -209,7 +245,7 @@ Level comparisons chain. This is Cicero's technique: build significance step by 
 ```
 SignificanceUnified/
 ├── Basic.lean          # Core formalization (sections 1–13)
-└── Consequences.lean   # Derived theorems (section 14)
+└── Consequences.lean   # Derived theorems (sections 14–17)
 ```
 
 **Basic.lean** — the core formalization:
@@ -246,6 +282,19 @@ SignificanceUnified/
 | `definitions_not_unique` | The same concept can have different essential definitions |
 | `chain_depth_bound` | A chain of k definitions accumulates ≥k depth units (hierarchies must terminate) |
 | `witness_not_implies_ccd3` | `CCDWitness₃` is strictly weaker than full `CCD₃` |
+| `genus_ne_differentia` | Genus and differentia must always be distinct concepts |
+| `definiendum_not_universal` | The defined concept never includes everything |
+| `differentia_not_universal` | The differentia always genuinely excludes something |
+| `amplification_min_quantum` | Every raise is by at least 1 — significance is quantized on ℤ |
+| `similarity_not_transitive` | Gap comparison does NOT compose transitively (counterexample) |
+| `preorder_not_partial_order` | The concept ordering is a genuine preorder, not a partial order |
+| `Gap.eq_zero_iff` | Zero gap if and only if equal depths (metric is definite) |
+| `Gap.translate` | Gap is translation-invariant |
+| `SimilarByContrast.translate` | Similarity is translation-invariant — the zero-point is conventional |
+| `contrast_not_interchangeable` | The contrast role is structurally distinguished (symmetry S₂, not S₃) |
+| `depths_pairwise_distinct` | CCD witnesses give three distinct depth values, not just entities |
+| `depth_separates_units` | The depth scale genuinely separates units within every defined concept |
+| `ccd3_of_subsingleton` | Singletons satisfy CCD₃ vacuously but cannot be essentially defined |
 
 ## Building
 
