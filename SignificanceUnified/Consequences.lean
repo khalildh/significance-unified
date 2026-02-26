@@ -412,3 +412,228 @@ theorem ccd3_of_subsingleton {α : Type} (k : Koncept α)
     (h : ∀ a b, k.pred a → k.pred b → a = b) : CCD₃ k := by
   intro a b ha hb hab
   exact absurd (h a b ha hb) hab
+
+-- ══════════════════════════════════════════════════════
+-- 18. THE SQUARE OF OPPOSITION
+--
+--    The four categorical propositions (A, E, I, O) and the six
+--    classical relationships between them: contradiction, contrariety,
+--    subalternation, subcontrariety. All derived from the concept
+--    preorder, not postulated.
+--
+--    Subalternation and subcontrariety require existential import
+--    (the subject must have at least one unit). For essentially
+--    defined concepts, the CCD witness provides this automatically.
+-- ══════════════════════════════════════════════════════
+
+/-- A proposition (universal affirmative): All S are P. -/
+def PropA {α : Type} (S P : Koncept α) : Prop := S ≤ P
+
+/-- E proposition (universal negative): No S are P. -/
+def PropE {α : Type} (S P : Koncept α) : Prop := ∀ a, S.pred a → ¬P.pred a
+
+/-- I proposition (particular affirmative): Some S are P. -/
+def PropI {α : Type} (S P : Koncept α) : Prop := ∃ a, S.pred a ∧ P.pred a
+
+/-- O proposition (particular negative): Some S are not P. -/
+def PropO {α : Type} (S P : Koncept α) : Prop := ∃ a, S.pred a ∧ ¬P.pred a
+
+/-- A and O are contradictories. They cannot both hold and cannot both
+    fail. The ¬O → A direction requires Classical (double negation
+    elimination on P.pred a). -/
+theorem propA_iff_not_propO {α : Type} {S P : Koncept α} :
+    PropA S P ↔ ¬PropO S P := by
+  constructor
+  · intro hA ⟨a, ha, hnp⟩; exact hnp (hA a ha)
+  · intro h a ha; by_contra hnp; exact h ⟨a, ha, hnp⟩
+
+/-- E and I are contradictories. Fully constructive — no Classical needed.
+    E says "for all units, not P"; ¬I says "no witness of S ∧ P exists."
+    These are equivalent by quantifier-negation duality. -/
+theorem propE_iff_not_propI {α : Type} {S P : Koncept α} :
+    PropE S P ↔ ¬PropI S P := by
+  constructor
+  · intro hE ⟨a, ha, hp⟩; exact hE a ha hp
+  · intro h a ha hp; exact h ⟨a, ha, hp⟩
+
+/-- Contrariety: A and E cannot both hold when S has a unit.
+    "All S are P" and "No S are P" are jointly unsatisfiable
+    given that S is non-empty. -/
+theorem contrary {α : Type} {S P : Koncept α}
+    (hne : ∃ a, S.pred a) (hA : PropA S P) (hE : PropE S P) : False := by
+  obtain ⟨a, ha⟩ := hne
+  exact hE a ha (hA a ha)
+
+/-- Subalternation A→I: if all S are P and S has a unit, then some S
+    are P. The CCD witness provides the unit for defined concepts. -/
+theorem subalternation_AI {α : Type} {S P : Koncept α}
+    (hne : ∃ a, S.pred a) (hA : PropA S P) : PropI S P := by
+  obtain ⟨a, ha⟩ := hne
+  exact ⟨a, ha, hA a ha⟩
+
+/-- Subalternation E→O: if no S are P and S has a unit, then some S
+    are not P. -/
+theorem subalternation_EO {α : Type} {S P : Koncept α}
+    (hne : ∃ a, S.pred a) (hE : PropE S P) : PropO S P := by
+  obtain ⟨a, ha⟩ := hne
+  exact ⟨a, ha, hE a ha⟩
+
+/-- Subcontrariety: I and O cannot both fail when S has a unit.
+    Constructive — if both ¬I and ¬O hold, we derive ¬P.pred a from ¬I
+    and ¬¬P.pred a from ¬O for the same unit, which is absurd. -/
+theorem subcontrary {α : Type} {S P : Koncept α}
+    (hne : ∃ a, S.pred a) (hni : ¬PropI S P) (hno : ¬PropO S P) : False := by
+  obtain ⟨a, ha⟩ := hne
+  exact hno ⟨a, ha, fun hp => hni ⟨a, ha, hp⟩⟩
+
+/-- Every essential definition provides existential import: the
+    definiendum always has at least one unit (from the CCD witness).
+    This is why subalternation always fires for defined concepts. -/
+theorem KonceptDef.existential_import {α : Type} (d : KonceptDef α) :
+    ∃ a, d.definiendum.pred a :=
+  ⟨d.ccd.a, d.ccd_concept ▸ d.ccd.ha⟩
+
+/-- Subalternation in action: from any essential definition,
+    "all definiendum are genus" (A) yields "some definiendum are genus" (I).
+    The CCD witness provides the existential. -/
+theorem KonceptDef.some_definiendum_are_genus {α : Type} (d : KonceptDef α) :
+    PropI d.definiendum d.genus :=
+  subalternation_AI d.existential_import (definiendum_le_genus d)
+
+/-- Similarly: "some definiendum are differentia" follows from the
+    definition and the CCD witness. -/
+theorem KonceptDef.some_definiendum_are_differentia {α : Type}
+    (d : KonceptDef α) : PropI d.definiendum d.differentia :=
+  subalternation_AI d.existential_import (definiendum_le_differentia d)
+
+-- ══════════════════════════════════════════════════════
+-- 19. COMPLETE SYLLOGISTIC
+--
+--    The 15 unconditionally valid syllogistic moods plus 4 moods
+--    requiring existential import. Barbara, Celarent, and Darii
+--    are in Basic.lean (section 11). The remaining 12 + 4 = 16
+--    are proved here as theorems using PropA/E/I/O.
+--
+--    Every proof is 2-3 lines: destructure the existential witness
+--    (for particular premises) and apply the universal premise.
+--    No mood requires anything beyond the concept preorder and
+--    basic logic. The entire classical syllogistic is a consequence
+--    of the formalization, not an addition to it.
+-- ══════════════════════════════════════════════════════
+
+-- ── Figure 1 (M-P, S-M) ─────────────────────────────
+-- Barbara, Celarent, Darii: see Basic.lean section 11
+
+/-- Ferio (EIO-1): No M are P. Some S are M. ∴ Some S are not P. -/
+theorem ferio {α : Type} {S M P : Koncept α}
+    (hE : PropE M P) (hI : PropI S M) : PropO S P := by
+  obtain ⟨a, hS, hM⟩ := hI
+  exact ⟨a, hS, hE a hM⟩
+
+-- ── Figure 2 (P-M, S-M) ─────────────────────────────
+
+/-- Cesare (EAE-2): No P are M. All S are M. ∴ No S are P. -/
+theorem cesare {α : Type} {S M P : Koncept α}
+    (hE : PropE P M) (hA : PropA S M) : PropE S P :=
+  fun a hS hP => hE a hP (hA a hS)
+
+/-- Camestres (AEE-2): All P are M. No S are M. ∴ No S are P. -/
+theorem camestres {α : Type} {S M P : Koncept α}
+    (hA : PropA P M) (hE : PropE S M) : PropE S P :=
+  fun a hS hP => hE a hS (hA a hP)
+
+/-- Festino (EIO-2): No P are M. Some S are M. ∴ Some S are not P. -/
+theorem festino {α : Type} {S M P : Koncept α}
+    (hE : PropE P M) (hI : PropI S M) : PropO S P := by
+  obtain ⟨a, hS, hM⟩ := hI
+  exact ⟨a, hS, fun hP => hE a hP hM⟩
+
+/-- Baroco (AOO-2): All P are M. Some S are not M. ∴ Some S are not P.
+    Traditionally requires proof by contradiction; here it is direct. -/
+theorem baroco {α : Type} {S M P : Koncept α}
+    (hA : PropA P M) (hO : PropO S M) : PropO S P := by
+  obtain ⟨a, hS, hnM⟩ := hO
+  exact ⟨a, hS, fun hP => hnM (hA a hP)⟩
+
+-- ── Figure 3 (M-P, M-S) ─────────────────────────────
+
+/-- Disamis (IAI-3): Some M are P. All M are S. ∴ Some S are P. -/
+theorem disamis {α : Type} {S M P : Koncept α}
+    (hI : PropI M P) (hA : PropA M S) : PropI S P := by
+  obtain ⟨a, hM, hP⟩ := hI
+  exact ⟨a, hA a hM, hP⟩
+
+/-- Datisi (AII-3): All M are P. Some M are S. ∴ Some S are P. -/
+theorem datisi {α : Type} {S M P : Koncept α}
+    (hA : PropA M P) (hI : PropI M S) : PropI S P := by
+  obtain ⟨a, hM, hS⟩ := hI
+  exact ⟨a, hS, hA a hM⟩
+
+/-- Bocardo (OAO-3): Some M are not P. All M are S. ∴ Some S are not P.
+    Traditionally requires proof by contradiction; here it is direct. -/
+theorem bocardo {α : Type} {S M P : Koncept α}
+    (hO : PropO M P) (hA : PropA M S) : PropO S P := by
+  obtain ⟨a, hM, hnP⟩ := hO
+  exact ⟨a, hA a hM, hnP⟩
+
+/-- Ferison (EIO-3): No M are P. Some M are S. ∴ Some S are not P. -/
+theorem ferison {α : Type} {S M P : Koncept α}
+    (hE : PropE M P) (hI : PropI M S) : PropO S P := by
+  obtain ⟨a, hM, hS⟩ := hI
+  exact ⟨a, hS, hE a hM⟩
+
+-- ── Figure 4 (P-M, M-S) ─────────────────────────────
+
+/-- Camenes (AEE-4): All P are M. No M are S. ∴ No S are P. -/
+theorem camenes {α : Type} {S M P : Koncept α}
+    (hA : PropA P M) (hE : PropE M S) : PropE S P :=
+  fun a hS hP => hE a (hA a hP) hS
+
+/-- Dimaris (IAI-4): Some P are M. All M are S. ∴ Some S are P. -/
+theorem dimaris {α : Type} {S M P : Koncept α}
+    (hI : PropI P M) (hA : PropA M S) : PropI S P := by
+  obtain ⟨a, hP, hM⟩ := hI
+  exact ⟨a, hA a hM, hP⟩
+
+/-- Fresison (EIO-4): No P are M. Some M are S. ∴ Some S are not P. -/
+theorem fresison {α : Type} {S M P : Koncept α}
+    (hE : PropE P M) (hI : PropI M S) : PropO S P := by
+  obtain ⟨a, hM, hS⟩ := hI
+  exact ⟨a, hS, fun hP => hE a hP hM⟩
+
+-- ── Existential import moods ─────────────────────────
+-- These require the middle term to be non-empty.
+-- For essentially defined concepts, KonceptDef.existential_import
+-- provides the witness automatically.
+
+/-- Darapti (AAI-3): All M are P. All M are S. ∴ Some S are P.
+    Requires non-empty M. -/
+theorem darapti {α : Type} {S M P : Koncept α}
+    (hA1 : PropA M P) (hA2 : PropA M S) (hne : ∃ a, M.pred a) :
+    PropI S P := by
+  obtain ⟨a, hM⟩ := hne
+  exact ⟨a, hA2 a hM, hA1 a hM⟩
+
+/-- Felapton (EAO-3): No M are P. All M are S. ∴ Some S are not P.
+    Requires non-empty M. -/
+theorem felapton {α : Type} {S M P : Koncept α}
+    (hE : PropE M P) (hA : PropA M S) (hne : ∃ a, M.pred a) :
+    PropO S P := by
+  obtain ⟨a, hM⟩ := hne
+  exact ⟨a, hA a hM, hE a hM⟩
+
+/-- Bramantip (AAI-4): All P are M. All M are S. ∴ Some S are P.
+    Requires non-empty P. -/
+theorem bramantip {α : Type} {S M P : Koncept α}
+    (hA1 : PropA P M) (hA2 : PropA M S) (hne : ∃ a, P.pred a) :
+    PropI S P := by
+  obtain ⟨a, hP⟩ := hne
+  exact ⟨a, hA2 a (hA1 a hP), hP⟩
+
+/-- Fesapo (EAO-4): No P are M. All M are S. ∴ Some S are not P.
+    Requires non-empty M. -/
+theorem fesapo {α : Type} {S M P : Koncept α}
+    (hE : PropE P M) (hA : PropA M S) (hne : ∃ a, M.pred a) :
+    PropO S P := by
+  obtain ⟨a, hM⟩ := hne
+  exact ⟨a, hA a hM, fun hP => hE a hP hM⟩
