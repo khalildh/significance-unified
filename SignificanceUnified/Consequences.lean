@@ -322,3 +322,93 @@ theorem preorder_not_partial_order :
   intro h
   have := congrFun (congrArg Koncept.χ h) ()
   exact absurd this (by native_decide)
+
+-- ══════════════════════════════════════════════════════
+-- 17. DEPTH SCALE PROPERTIES
+-- ══════════════════════════════════════════════════════
+
+/-- Gap is definite: zero gap implies equal depths. -/
+theorem Gap.eq_of_zero {a b : ℤ} (h : Gap a b = 0) : a = b := by
+  unfold Gap at h
+  omega
+
+/-- Gap is zero if and only if the two depths are equal. The depth metric
+    has no accidental zeros — distinct depths always have positive gap. -/
+theorem Gap.eq_zero_iff {a b : ℤ} : Gap a b = 0 ↔ a = b := by
+  constructor
+  · exact Gap.eq_of_zero
+  · rintro rfl; exact Gap.self_zero _
+
+/-- Gap is translation-invariant: shifting both arguments by the same
+    amount preserves the gap. Distance on the scale depends only on
+    relative position, not absolute placement. -/
+theorem Gap.translate {a b k : ℤ} : Gap (a + k) (b + k) = Gap a b := by
+  unfold Gap; congr 1; ring
+
+/-- SimilarByContrast is translation-invariant. Adding the same constant to
+    all three depth values preserves similarity — the relation depends on
+    relative distances, not absolute positions. You can re-zero your depth
+    scale anywhere without affecting which things count as similar.
+    This means the choice of where zero sits on the depth scale is
+    conventional, not structural. -/
+theorem SimilarByContrast.translate {a b c k : ℤ}
+    (h : SimilarByContrast a b c) :
+    SimilarByContrast (a + k) (b + k) (c + k) := by
+  obtain ⟨hne, h1, h2⟩ := h
+  refine ⟨fun heq => hne (by linarith), ?_, ?_⟩
+  · rw [Gap.translate, Gap.translate]; exact h1
+  · rw [Gap.translate, Gap.translate]; exact h2
+
+/-- The contrast position in SimilarByContrast is not interchangeable with
+    the similar positions. You cannot swap a "similar" entity with the
+    contrast entity and preserve the relation. The contrast role is
+    structurally distinguished — it is not just another argument.
+    Combined with SimilarByContrast.symm (which swaps the first two),
+    this shows the relation has exactly the symmetry group S₂, not S₃.
+    Counterexample: 0 and 1 are similar vs 5, but 0 and 5 are NOT
+    similar vs 1. -/
+theorem contrast_not_interchangeable :
+    ¬(∀ a b c : Depth, SimilarByContrast a b c → SimilarByContrast a c b) := by
+  intro h
+  have h1 : SimilarByContrast (0 : ℤ) 1 5 := by
+    refine ⟨by native_decide, ?_, ?_⟩ <;> native_decide
+  have h2 := h 0 1 5 h1
+  obtain ⟨_, hlt, _⟩ := h2
+  have hg1 : Gap (0 : ℤ) 5 = 5 := by native_decide
+  have hg2 : Gap (0 : ℤ) 1 = 1 := by native_decide
+  rw [hg1, hg2] at hlt
+  exact absurd hlt (by omega)
+
+/-- The CCD witness gives three pairwise-distinct DEPTH VALUES, not just
+    three distinct entities. The depth scale must assign different values
+    to all three witness elements. Concept formation requires at least
+    three positions on the integer scale. -/
+theorem CCDWitness₃.depths_pairwise_distinct {α : Type} (w : CCDWitness₃ α) :
+    w.k.χ w.a ≠ w.k.χ w.b ∧
+    w.k.χ w.a ≠ w.k.χ w.contrast ∧
+    w.k.χ w.b ≠ w.k.χ w.contrast :=
+  ⟨w.similar.different,
+   w.similar.contrastDiffers_a,
+   w.similar.contrastDiffers_b⟩
+
+/-- In any essential definition, the depth scale genuinely separates at
+    least two units. The CCD witness entities always have different depths
+    under the definiendum's characteristic. The scale is non-degenerate —
+    it does real work in distinguishing members of the concept. -/
+theorem KonceptDef.depth_separates_units {α : Type} (d : KonceptDef α) :
+    d.definiendum.χ d.ccd.a ≠ d.definiendum.χ d.ccd.b := by
+  have h := d.ccd.similar.different
+  rw [d.ccd_concept] at h
+  exact h
+
+/-- A concept with at most one unit satisfies CCD₃ vacuously — there are
+    never two distinct units to demand a contrast witness for.
+    But such a concept CANNOT be essentially defined, because KonceptDef
+    requires a CCDWitness₃ with two distinct units. This reveals the gap
+    between CCD₃ (a property any degenerate concept satisfies) and
+    definability (which requires substantive grounding). Singletons and
+    the empty concept satisfy CCD₃ but are not definable. -/
+theorem ccd3_of_subsingleton {α : Type} (k : Koncept α)
+    (h : ∀ a b, k.pred a → k.pred b → a = b) : CCD₃ k := by
+  intro a b ha hb hab
+  exact absurd (h a b ha hb) hab
