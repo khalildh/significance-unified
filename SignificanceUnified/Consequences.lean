@@ -245,3 +245,80 @@ theorem witness_not_implies_ccd3 : ¬CCD₃ weakConcept := by
     have hg2 : Gap (weakConcept.χ .x) (weakConcept.χ .w) = 49 := by native_decide
     rw [hg1, hg2] at h1
     omega
+
+-- ══════════════════════════════════════════════════════
+-- 16. STRUCTURAL CONSEQUENCES
+-- ══════════════════════════════════════════════════════
+
+/-- Genus and differentia are always distinct concepts. If they were equal,
+    isEssential would require Raise(genus.χ a)(genus.χ a) = a < a on ℤ,
+    which is impossible. Essential definitions always involve genuinely
+    different aspects of an entity — the genus and differentia cannot
+    collapse into the same concept. -/
+theorem KonceptDef.genus_ne_differentia {α : Type} (d : KonceptDef α) :
+    d.genus ≠ d.differentia := by
+  intro h
+  have ha := d.ccd_concept ▸ d.ccd.ha
+  exact absurd (h ▸ d.isEssential d.ccd.a ha) (Raise.irrefl _)
+
+/-- The definiendum of an essential definition never includes everything.
+    The CCD contrast witness lies outside it. Even the weaker CCDWitness₃
+    (not full CCD₃) suffices to rule out universal definienda. -/
+theorem KonceptDef.definiendum_not_universal {α : Type} (d : KonceptDef α) :
+    ∃ a, ¬d.definiendum.pred a :=
+  ⟨d.ccd.contrast, d.ccd_concept ▸ d.ccd.hc⟩
+
+/-- The differentia never includes everything. The CCD contrast witness
+    is explicitly required to lack the differentia, meaning the differentia
+    always genuinely excludes something — it is a real distinction, not
+    a vacuous one. -/
+theorem KonceptDef.differentia_not_universal {α : Type} (d : KonceptDef α) :
+    ∃ a, ¬d.differentia.pred a :=
+  ⟨d.ccd.contrast, d.ccd_contrast⟩
+
+/-- On ℤ, every strict inequality gives a gap of at least 1. -/
+private theorem raise_min_gap {a b : ℤ} (h : a < b) : b ≥ a + 1 := by omega
+
+/-- There is a minimum quantum of amplification. On ℤ, every strict raise
+    increases the subject by at least 1 above the baseline. Significance
+    cannot be raised by an arbitrarily small amount — this is a consequence
+    of working over the integers rather than the reals. -/
+theorem amplification_min_quantum (m : AmplificationMove) :
+    m.comparison.subject ≥ m.comparison.baseline + 1 :=
+  raise_min_gap m.isStrict
+
+/-- SimilarByContrast is not transitive. Level comparisons (Raise) compose
+    transitively — that is what makes Cicero's chains work. Gap comparisons
+    do not. This is the fundamental structural asymmetry between the two
+    comparison types.
+    Counterexample: 0 and 1 are similar vs 5; 1 and 5 are similar vs 10;
+    but 0 and 5 are NOT similar vs 10 because Gap(0,5) = Gap(5,10) = 5,
+    violating the strict inequality requirement. -/
+theorem similarity_not_transitive :
+    ¬(∀ a b c d : Depth,
+      SimilarByContrast a b c → SimilarByContrast b c d →
+      SimilarByContrast a c d) := by
+  intro h
+  have h1 : SimilarByContrast (0 : ℤ) 1 5 := by
+    refine ⟨by native_decide, ?_, ?_⟩ <;> native_decide
+  have h2 : SimilarByContrast (1 : ℤ) 5 10 := by
+    refine ⟨by native_decide, ?_, ?_⟩ <;> native_decide
+  have h3 := h 0 1 5 10 h1 h2
+  obtain ⟨_, _, hlt⟩ := h3
+  have hg1 : Gap (0 : ℤ) 5 = 5 := by native_decide
+  have hg2 : Gap (5 : ℤ) 10 = 5 := by native_decide
+  rw [hg1, hg2] at hlt
+  exact absurd hlt (by omega)
+
+/-- The concept preorder is not a partial order. Two concepts with identical
+    extensions but different characteristics are mutually ≤ but not equal.
+    The ordering sees only which entities fall under each concept; the depth
+    scale is invisible to it. This is by design — "all men are animals" is
+    about membership, not about depths. -/
+theorem preorder_not_partial_order :
+    ∃ (k1 k2 : Koncept Unit), k1 ≤ k2 ∧ k2 ≤ k1 ∧ k1 ≠ k2 := by
+  refine ⟨⟨fun _ => True, fun _ => 0⟩, ⟨fun _ => True, fun _ => 1⟩,
+    fun _ h => h, fun _ h => h, ?_⟩
+  intro h
+  have := congrFun (congrArg Koncept.χ h) ()
+  exact absurd this (by native_decide)
