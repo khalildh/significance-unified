@@ -141,9 +141,29 @@ This is not obvious because the two definitions use different characteristic fun
 
 `AmplificationMove.irreversible` — If a rhetorical move raises the subject above the baseline, the reverse comparison cannot hold on the same scale. The asymmetry is structural: the integers do not allow `a < b` and `b < a` simultaneously.
 
+### Concept theory requires at least three things
+
+`CCDWitness₃.three_distinct` and `KonceptDef.min_three_entities` — The CCD witness exhibits three pairwise-distinct entities (two inside the concept, one outside). Any essential definition therefore requires a universe with at least three things. With fewer, the entire framework of contrast-grounded concepts is vacuous.
+
+### Contrast is undirected; raise is directed
+
+`contrast_symmetric_raise_directed` — SimilarByContrast is symmetric in its first two arguments (swapping "similar" entities preserves the relation), but Raise is not (`a < b` does not imply `b < a`). This is why `KonceptDef` needs `isEssential` as a separate field: the CCD witness determines *that* a raise exists, but not its *direction*. The choice of which concept is genus and which is differentia is additional structure that contrast alone cannot provide.
+
+### Essential definitions are not unique
+
+`definitions_not_unique` — The same concept can have different genus/differentia decompositions. Both "Man = Rational Animal" and "Man = Rational Sentient-being" are valid essential definitions of Man. Aristotle sometimes writes as if there is one true definition per concept. The formalization shows this is not forced by the structure — multiplicity is consistent with all the axioms.
+
+### Definition hierarchies must terminate
+
+`chain_depth_bound` — A chain of two essential definitions accumulates at least 2 units of depth on ℤ. More generally, k definitions in a chain contribute at least k. On a finite type with bounded depth values, this means definition hierarchies must terminate — you will eventually exhaust the available depth range. This is Aristotle's claim that definition chains bottom out in primitive, undefined terms, now proved as a mathematical consequence.
+
+### CCDWitness₃ is weaker than CCD₃
+
+`witness_not_implies_ccd3` — A concept can have a valid CCD witness for one pair of units without satisfying the full CCD₃ axiom across all pairs. The formalization constructs an explicit counterexample: a concept where two units are close enough for a witness, but a third unit is so far away that no outsider can bridge the gap. Whether full CCD₃ should be required is a genuine philosophical question the formalization leaves open.
+
 ### The meta-point
 
-These six results were previously **separate doctrines** from different authors and different centuries — Aristotle's anti-circularity, Aristotle's "being is not a genus," Rand's "two or more concretes," the implicit compositionality of definitional hierarchies. The formalization shows they are all consequences of one thing: **essential definitions carry a strict depth comparison grounded in contrast**. That is the unification — not just Kennedy and Rand, but the downstream implications that were never connected before.
+These twelve results were previously **separate doctrines** from different authors and different centuries — Aristotle's anti-circularity, Aristotle's "being is not a genus," Rand's "two or more concretes," the implicit compositionality of definitional hierarchies, the termination of definition chains, the non-uniqueness of definitions. The formalization shows they are all consequences of one thing: **essential definitions carry a strict depth comparison grounded in contrast**. That is the unification — not just Kennedy and Rand, but the downstream implications that were never connected before.
 
 ## Concrete examples
 
@@ -220,6 +240,12 @@ SignificanceUnified/
 | `chain` | Definition hierarchies compose transitively |
 | `genus_lt_differentia` | Genus and differentia never have equal depth on any unit |
 | `irreversible` | Amplification cannot be reversed |
+| `three_distinct` | CCD witnesses exhibit three pairwise-distinct entities |
+| `min_three_entities` | Essential definitions require a universe of at least three things |
+| `contrast_symmetric_raise_directed` | Contrast is symmetric but raise is not — direction is extra structure |
+| `definitions_not_unique` | The same concept can have different essential definitions |
+| `chain_depth_bound` | A chain of k definitions accumulates ≥k depth units (hierarchies must terminate) |
+| `witness_not_implies_ccd3` | `CCDWitness₃` is strictly weaker than full `CCD₃` |
 
 ## Building
 
