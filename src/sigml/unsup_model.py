@@ -34,11 +34,11 @@ class ModelConfig:
     embed_dim: int = 128      # shared CNN output dim
     genus_dim: int = 64       # genus embedding dim
     diff_dim: int = 64        # differentia embedding dim
-    k_genus: int = 4          # number of genus clusters to discover
-    k_diff: int = 20          # number of differentia clusters to discover
-                              # (deliberately over-specified; unused clusters
-                              #  collapse under the uniformity loss)
+    k_genus: int = 16         # overcomplete genus clusters (pruned during training)
+    k_diff: int = 100         # overcomplete differentia clusters (pruned during training)
     temp: float = 0.5         # softmax temperature for soft assignments (higher = softer)
+    prune_threshold: float = 0.5    # min CCD₃ witnessability to stay alive
+    prune_patience: int = 3         # consecutive epochs below threshold before pruning
 
 
 class CNNEncoder(nn.Module):
@@ -71,6 +71,10 @@ class PrototypeLayer(nn.Module):
     """
     Soft assignment to k learned prototypes via temperature-scaled cosine sim.
 
+    Supports overcomplete initialization with pruning: prototypes whose mean
+    assignment mass stays below `prune_threshold` for `prune_patience` consecutive
+    epochs are marked dead and excluded from softmax (set to -inf).
+
     Returns:
       probs: (B, k)  soft cluster assignment probabilities
 
@@ -82,12 +86,37 @@ class PrototypeLayer(nn.Module):
         super().__init__()
         self.prototypes = nn.Parameter(torch.randn(k, dim))
         self.temp = temp
+        self.register_buffer("alive", torch.ones(k, dtype=torch.bool))
+        self.register_buffer("dead_epochs", torch.zeros(k, dtype=torch.long))
 
     def forward(self, z: torch.Tensor) -> torch.Tensor:
         z_norm = F.normalize(z, dim=-1)
         p_norm = F.normalize(self.prototypes, dim=-1)
         sim = z_norm @ p_norm.T          # (B, k)
+        # Mask dead prototypes so they get zero probability after softmax
+        sim = sim.masked_fill(~self.alive.unsqueeze(0), float("-inf"))
         return F.softmax(sim / self.temp, dim=-1)
+
+    def prune(self, mean_mass: torch.Tensor, threshold: float, patience: int) -> None:
+        """Update dead_epochs and mark prototypes dead when patience exhausted.
+
+        Args:
+            mean_mass: (k,) mean assignment probability per prototype over the dataset.
+            threshold: minimum mass to be considered alive.
+            patience: consecutive epochs below threshold before pruning.
+        """
+        below = mean_mass.to(self.alive.device) < threshold
+        # Only track prototypes that are still alive
+        self.dead_epochs[self.alive & below] += 1
+        self.dead_epochs[self.alive & ~below] = 0
+        # Kill prototypes that have been below threshold for `patience` epochs
+        newly_dead = self.alive & (self.dead_epochs >= patience)
+        if newly_dead.any():
+            self.alive[newly_dead] = False
+
+    @property
+    def effective_k(self) -> int:
+        return int(self.alive.sum().item())
 
 
 class SigMLUnsupervised(nn.Module):

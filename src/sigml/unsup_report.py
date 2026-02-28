@@ -64,7 +64,7 @@ def generate_report(model_path: str | None = None) -> None:
     # Collect all outputs
     all_chi_G, all_chi_D = [], []
     all_p_G, all_p_D = [], []
-    all_z_D = []
+    all_z_G, all_z_D = [], []
     all_eval_labels = []
 
     with torch.no_grad():
@@ -75,6 +75,7 @@ def generate_report(model_path: str | None = None) -> None:
             all_chi_D.append(out["chi_D"].cpu())
             all_p_G.append(out["p_G"].cpu())
             all_p_D.append(out["p_D"].cpu())
+            all_z_G.append(out["z_G"].cpu())
             all_z_D.append(out["z_D"].cpu())
             all_eval_labels.append(eval_labels)
 
@@ -82,6 +83,7 @@ def generate_report(model_path: str | None = None) -> None:
     chi_D = torch.cat(all_chi_D).numpy()
     p_G = torch.cat(all_p_G)
     p_D = torch.cat(all_p_D)
+    z_G = torch.cat(all_z_G)
     z_D = torch.cat(all_z_D)
     eval_labels = torch.cat(all_eval_labels).numpy()
 
@@ -188,6 +190,65 @@ def generate_report(model_path: str | None = None) -> None:
         frac = dominant_n / total
         print(f"  Diff {d:2d} -> genus {dominant_g} ({frac * 100:.0f}% of members)")
     print(f"  Lean analogue: definiendum = genus.meet differentia")
+
+    # 6. CCD₃ Coverage
+    print("\n── 6. CCD₃ COVERAGE (SimilarByContrast over embeddings) ──")
+    print("  For each active cluster, sample triplets (a, b from cluster,")
+    print("  c from outside) and check both gap inequalities hold.")
+    rng = np.random.default_rng(42)
+    max_triplets = 100
+
+    def ccd3_coverage(assignments, embeddings, cluster_ids):
+        """Compute per-cluster and overall CCD₃ coverage."""
+        per_cluster = {}
+        for c in cluster_ids:
+            in_mask = np.where(assignments == c)[0]
+            out_mask = np.where(assignments != c)[0]
+            if len(in_mask) < 2 or len(out_mask) == 0:
+                continue
+            n_pairs = min(max_triplets, len(in_mask) * (len(in_mask) - 1) // 2)
+            satisfied = 0
+            for _ in range(n_pairs):
+                idx_ab = rng.choice(len(in_mask), size=2, replace=False)
+                a, b = in_mask[idx_ab[0]], in_mask[idx_ab[1]]
+                c_idx = out_mask[rng.integers(len(out_mask))]
+                z_a = embeddings[a]
+                z_b = embeddings[b]
+                z_c = embeddings[c_idx]
+                gap_ab = torch.norm(z_a - z_b).item()
+                gap_ac = torch.norm(z_a - z_c).item()
+                gap_bc = torch.norm(z_b - z_c).item()
+                if gap_ab < gap_ac and gap_ab < gap_bc:
+                    satisfied += 1
+            per_cluster[c] = satisfied / n_pairs
+        return per_cluster
+
+    # Genus CCD₃
+    active_genus = [g for g in range(model_cfg.k_genus)
+                    if (genus_assignments == g).sum() >= 10]
+    genus_ccd3 = ccd3_coverage(genus_assignments, z_G, active_genus)
+    print(f"\n  Genus clusters ({len(genus_ccd3)} active):")
+    for g, cov in sorted(genus_ccd3.items()):
+        n = (genus_assignments == g).sum()
+        print(f"    Genus {g:2d}: coverage={cov:.3f}  (n={n})")
+    if genus_ccd3:
+        genus_mean = np.mean(list(genus_ccd3.values()))
+        print(f"    Overall genus CCD₃: {genus_mean:.3f}")
+
+    # Differentia CCD₃
+    diff_ccd3 = ccd3_coverage(diff_assignments, z_D, active_diff)
+    print(f"\n  Differentia clusters ({len(diff_ccd3)} active):")
+    for d, cov in sorted(diff_ccd3.items()):
+        n = (diff_assignments == d).sum()
+        print(f"    Diff {d:2d}: coverage={cov:.3f}  (n={n})")
+    if diff_ccd3:
+        diff_mean = np.mean(list(diff_ccd3.values()))
+        print(f"    Overall differentia CCD₃: {diff_mean:.3f}")
+
+    if genus_ccd3 and diff_ccd3:
+        overall = np.mean(list(genus_ccd3.values()) + list(diff_ccd3.values()))
+        print(f"\n  Overall CCD₃ coverage: {overall:.3f}")
+    print(f"  Lean analogue: SimilarByContrast (gap inequalities on embedding space)")
 
     print("\n" + "=" * 70)
 

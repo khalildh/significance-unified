@@ -65,11 +65,48 @@ def raise_satisfaction_rate(chi_G: torch.Tensor, chi_D: torch.Tensor) -> float:
     return (chi_D > chi_G).float().mean().item()
 
 
-def evaluate(model: SigMLUnsupervised, loader, device: str) -> dict[str, float]:
+def ccd_witnessability(
+    embeddings: torch.Tensor,
+    assignments: torch.Tensor,
+    k: int,
+    n_triplets: int = 50,
+    min_cluster_size: int = 2,
+) -> torch.Tensor:
+    """Per-cluster CCD₃ witnessability: fraction of sampled triplets where
+    both SimilarByContrast gap inequalities hold.
+
+    A cluster that can't produce witnesses is an ungrounded abstraction.
+    For random partitions, expected score is ~1/3 (one of three gaps is
+    smallest with equal probability). Well-separated clusters score >0.8.
+    """
+    scores = torch.zeros(k)
+    for c in range(k):
+        in_idx = (assignments == c).nonzero(as_tuple=True)[0]
+        out_idx = (assignments != c).nonzero(as_tuple=True)[0]
+        if len(in_idx) < min_cluster_size or len(out_idx) == 0:
+            scores[c] = 0.0
+            continue
+        n = min(n_triplets, len(in_idx) * (len(in_idx) - 1) // 2)
+        # Sample pairs from within cluster
+        pair_idx = torch.randint(0, len(in_idx), (n, 2))
+        same = pair_idx[:, 0] == pair_idx[:, 1]
+        pair_idx[same, 1] = (pair_idx[same, 1] + 1) % len(in_idx)
+        a = in_idx[pair_idx[:, 0]]
+        b = in_idx[pair_idx[:, 1]]
+        c_out = out_idx[torch.randint(0, len(out_idx), (n,))]
+        gap_ab = torch.norm(embeddings[a] - embeddings[b], dim=-1)
+        gap_ac = torch.norm(embeddings[a] - embeddings[c_out], dim=-1)
+        gap_bc = torch.norm(embeddings[b] - embeddings[c_out], dim=-1)
+        scores[c] = ((gap_ab < gap_ac) & (gap_ab < gap_bc)).float().mean().item()
+    return scores
+
+
+def evaluate(model: SigMLUnsupervised, loader, device: str) -> dict:
     model.eval()
 
     all_chi_G, all_chi_D = [], []
     all_p_G, all_p_D = [], []
+    all_z_G, all_z_D = [], []
     all_eval_labels = []
 
     with torch.no_grad():
@@ -80,12 +117,16 @@ def evaluate(model: SigMLUnsupervised, loader, device: str) -> dict[str, float]:
             all_chi_D.append(out["chi_D"].cpu())
             all_p_G.append(out["p_G"].cpu())
             all_p_D.append(out["p_D"].cpu())
+            all_z_G.append(out["z_G"].cpu())
+            all_z_D.append(out["z_D"].cpu())
             all_eval_labels.append(eval_labels)
 
     chi_G = torch.cat(all_chi_G)
     chi_D = torch.cat(all_chi_D)
     p_G = torch.cat(all_p_G)
     p_D = torch.cat(all_p_D)
+    z_G = torch.cat(all_z_G)
+    z_D = torch.cat(all_z_D)
     eval_labels = torch.cat(all_eval_labels)
 
     genus_assignments = p_G.argmax(dim=-1)
@@ -102,6 +143,12 @@ def evaluate(model: SigMLUnsupervised, loader, device: str) -> dict[str, float]:
     mean_chi_D = chi_D.mean().item()
     mean_gap = (chi_D - chi_G).mean().item()
 
+    # CCD₃ witnessability per cluster (pruning signal)
+    k_genus = p_G.shape[1]
+    k_diff = p_D.shape[1]
+    genus_witness = ccd_witnessability(z_G, genus_assignments, k_genus)
+    diff_witness = ccd_witnessability(z_D, diff_assignments, k_diff)
+
     model.train()
     return {
         "raise_rate": raise_rate,
@@ -112,6 +159,10 @@ def evaluate(model: SigMLUnsupervised, loader, device: str) -> dict[str, float]:
         "mean_chi_G": mean_chi_G,
         "mean_chi_D": mean_chi_D,
         "mean_gap": mean_gap,
+        "genus_marginal": p_G.mean(0),
+        "diff_marginal": p_D.mean(0),
+        "genus_witnessability": genus_witness,   # (k_genus,) CCD₃ scores
+        "diff_witnessability": diff_witness,     # (k_diff,) CCD₃ scores
     }
 
 
@@ -131,21 +182,25 @@ def train(cfg: TrainConfig) -> str:
     save_path = "results/unsup_model.pt"
 
     print(f"\nTraining for {cfg.n_epochs} epochs")
-    print(f"Genus clusters to discover: {cfg.model.k_genus}")
-    print(f"Differentia clusters to discover: {cfg.model.k_diff}")
+    print(f"Genus clusters (overcomplete): {cfg.model.k_genus}")
+    print(f"Differentia clusters (overcomplete): {cfg.model.k_diff}")
+    print(f"Prune threshold: {cfg.model.prune_threshold}, patience: {cfg.model.prune_patience}")
     print("No labels used during training.\n")
 
     header = (
         f"{'ep':>3} | {'total':>6} {'gc':>6} {'dc':>6} "
         f"{'raise':>6} {'hier':>6} {'unif':>6} | "
         f"{'r_rate':>6} {'g_pur':>6} {'d_pur':>6} | "
-        f"{'G_cl':>4} {'D_cl':>4} | "
+        f"{'effG':>4} {'effD':>4} | "
         f"{'chi_G':>6} {'chi_D':>6} {'gap':>6}"
     )
     print(header)
     print("-" * len(header))
 
     best_diff_purity = 0.0
+    # Track per-prototype witnessability history for pruning diagnostics
+    genus_witness_history: list[torch.Tensor] = []
+    diff_witness_history: list[torch.Tensor] = []
 
     warmup_epochs = max(1, cfg.n_epochs // 5)
 
@@ -189,6 +244,23 @@ def train(cfg: TrainConfig) -> str:
             epoch_losses[k] /= max(n_batches, 1)
 
         metrics = evaluate(model, test_loader, device)
+        genus_witness_history.append(metrics["genus_witnessability"].cpu().clone())
+        diff_witness_history.append(metrics["diff_witnessability"].cpu().clone())
+
+        # Prune prototypes that can't produce CCD₃ witnesses
+        model.genus_proto.prune(
+            metrics["genus_witnessability"],
+            cfg.model.prune_threshold,
+            cfg.model.prune_patience,
+        )
+        model.diff_proto.prune(
+            metrics["diff_witnessability"],
+            cfg.model.prune_threshold,
+            cfg.model.prune_patience,
+        )
+
+        eff_g = model.genus_proto.effective_k
+        eff_d = model.diff_proto.effective_k
 
         print(
             f"{epoch:3d} | "
@@ -201,8 +273,8 @@ def train(cfg: TrainConfig) -> str:
             f"{metrics['raise_rate']:6.3f} "
             f"{metrics['genus_purity']:6.3f} "
             f"{metrics['diff_purity']:6.3f} | "
-            f"{metrics['genus_clusters_used']:4.0f} "
-            f"{metrics['diff_clusters_used']:4.0f} | "
+            f"{eff_g:4d} "
+            f"{eff_d:4d} | "
             f"{metrics['mean_chi_G']:6.2f} "
             f"{metrics['mean_chi_D']:6.2f} "
             f"{metrics['mean_gap']:6.2f}"
@@ -220,6 +292,69 @@ def train(cfg: TrainConfig) -> str:
 
     print(f"\nBest differentia purity: {best_diff_purity:.4f}")
     print(f"Saved to {save_path}")
+
+    # ── Pruning diagnostics (CCD₃ witnessability) ──
+    g_wit = torch.stack(genus_witness_history)  # (n_epochs, k_genus)
+    d_wit = torch.stack(diff_witness_history)   # (n_epochs, k_diff)
+    g_alive = model.genus_proto.alive.cpu()
+    d_alive = model.diff_proto.alive.cpu()
+
+    print("\n── PRUNING DIAGNOSTICS (CCD₃ witnessability) ──")
+    print(f"  Threshold: {cfg.model.prune_threshold}  Patience: {cfg.model.prune_patience}")
+    print(f"  (Random baseline ≈ 0.33; well-separated clusters > 0.8)")
+
+    # Genus witnessability
+    final_g = g_wit[-1]
+    print(f"\n  Genus ({g_alive.sum()} alive / {len(g_alive)}):")
+    sorted_g, idx_g = final_g.sort(descending=True)
+    for i in range(len(sorted_g)):
+        pid = idx_g[i].item()
+        status = "alive" if g_alive[pid] else "DEAD"
+        peak = g_wit[:, pid].max().item()
+        final = sorted_g[i].item()
+        traj = [f"{g_wit[e, pid]:.2f}" for e in range(min(5, len(g_wit)))]
+        if len(g_wit) > 5:
+            traj.append("...")
+            traj.append(f"{final:.2f}")
+        print(f"    proto {pid:2d}: wit={final:.3f}  peak={peak:.3f}  "
+              f"[{status}]  [{' → '.join(traj)}]")
+
+    # Differentia witnessability
+    pruned_d = (~d_alive).nonzero(as_tuple=True)[0]
+    surviving_d = d_alive.nonzero(as_tuple=True)[0]
+    print(f"\n  Differentia ({d_alive.sum()} alive / {len(d_alive)}):")
+
+    if len(surviving_d) > 0:
+        final_surv = d_wit[-1, surviving_d]
+        print(f"    Surviving — wit min: {final_surv.min():.3f}  "
+              f"max: {final_surv.max():.3f}  mean: {final_surv.mean():.3f}  "
+              f"std: {final_surv.std():.3f}")
+
+    if len(pruned_d) > 0:
+        pruned_peaks = d_wit[:, pruned_d].max(dim=0).values
+        final_pruned = d_wit[-1, pruned_d]
+        print(f"    Pruned ({len(pruned_d)}) — peak wit min: {pruned_peaks.min():.3f}  "
+              f"max: {pruned_peaks.max():.3f}  mean: {pruned_peaks.mean():.3f}")
+        # Classify: never-grounded vs lost-grounding
+        never_grounded = (pruned_peaks < cfg.model.prune_threshold).sum().item()
+        lost_grounding = len(pruned_d) - never_grounded
+        print(f"    Never grounded (peak < {cfg.model.prune_threshold}): {never_grounded}")
+        print(f"    Lost grounding (had witnesses, then lost them): {lost_grounding}")
+        if lost_grounding > 0:
+            print("    → Genuine ontological compression: abstractions lost their ground")
+
+        # Show trajectories for most interesting pruned heads
+        show_n = min(5, len(pruned_d))
+        top_pruned = pruned_peaks.argsort(descending=True)[:show_n]
+        print(f"\n  Top {show_n} pruned prototypes by peak witnessability:")
+        for pi in top_pruned:
+            pid = pruned_d[pi].item()
+            traj = d_wit[:, pid].tolist()
+            traj_str = " → ".join(f"{w:.2f}" for w in traj)
+            print(f"    proto {pid:3d}: {traj_str}")
+    else:
+        print("  No prototypes pruned.")
+
     return save_path
 
 
@@ -230,8 +365,8 @@ def main() -> None:
     parser.add_argument("--n-epochs", type=int, default=30)
     parser.add_argument("--batch-size", type=int, default=256)
     parser.add_argument("--lr", type=float, default=3e-4)
-    parser.add_argument("--k-genus", type=int, default=4)
-    parser.add_argument("--k-diff", type=int, default=20)
+    parser.add_argument("--k-genus", type=int, default=16)
+    parser.add_argument("--k-diff", type=int, default=100)
     parser.add_argument("--device", type=str, default="")
     args = parser.parse_args()
 

@@ -216,23 +216,17 @@ def loss_hierarchy(out: dict, cfg: LossConfig) -> torch.Tensor:
 
 def loss_uniform(out: dict, cfg: LossConfig) -> torch.Tensor:
     """
-    Uniformity: no cluster absorbs everything.
+    Anti-collapse: no single cluster absorbs everything.
 
     Lean: no_universal_ccd -- a universal concept cannot be CCD-grounded.
 
-    We prevent collapse by maximizing the entropy of the marginal cluster
-    assignment distribution.
+    Penalizes the maximum marginal assignment mass. This prevents any one
+    cluster from dominating without forcing uniform spread -- clusters are
+    free to concentrate or die, as long as no single one goes universal.
     """
-    # Genus marginal
     p_G_marginal = out["p_G"].mean(dim=0)
-    H_G = -(p_G_marginal * (p_G_marginal + 1e-8).log()).sum()
-
-    # Differentia marginal
     p_D_marginal = out["p_D"].mean(dim=0)
-    H_D = -(p_D_marginal * (p_D_marginal + 1e-8).log()).sum()
-
-    # Maximize entropy -> minimize negative entropy
-    return -(H_G + H_D)
+    return p_G_marginal.max() + p_D_marginal.max()
 
 
 def total_loss(out: dict, cfg: LossConfig) -> tuple[torch.Tensor, dict]:
