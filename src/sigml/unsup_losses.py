@@ -1,22 +1,18 @@
 """
-losses.py — Five unsupervised losses mapping to the Lean formalization.
+losses.py — Unsupervised losses for N-level hierarchy, mapping to the Lean formalization.
 
 NO labels are used anywhere in this file. Cluster identities are discovered
-from the model's own soft assignments (p_G, p_D). The Lean structure dictates
-the loss design:
+from the model's own soft assignments. The Lean structure dictates the loss:
 
-  L_genus_contrast   <->  CCD3 at the genus level
-                         (SimilarByContrast for genus-level grouping)
-  L_diff_contrast    <->  CCD3 at the differentia level
-                         (SimilarByContrast within genus, contrasted across genus)
-  L_raise            <->  KonceptDef.isEssential
-                         (Raise: chi_G < chi_D on every image)
-  L_hier             <->  definiendum = genus.meet differentia
-                         (differentia assignment determines genus assignment)
-  L_uniform          <->  no_universal_ccd + collapse prevention
-                         (no cluster absorbs everything)
+  L_contrast  <->  CCD3 at each alive level (SimilarByContrast)
+  L_raise     <->  Raise composition across all adjacent level pairs
+                   (chi_0 < chi_1 < ... < chi_{L-1})
+  L_hier      <->  Each finer level predicts its parent
+                   (definiendum = genus.meet differentia, composed via chain)
+  L_uniform   <->  no_universal_ccd + collapse prevention per level
 
-Total loss: L = L_genus_contrast + L_diff_contrast + L_raise + L_hier + L_uniform
+Total loss: L = w_contrast * L_contrast + w_raise * L_raise
+             + w_hier * L_hier + w_unif * L_uniform
 
 Key design decision: the contrast losses use SOFT cluster assignments as
 pseudo-labels for triplet mining. An image is an "anchor/positive" for
@@ -33,24 +29,17 @@ from dataclasses import dataclass
 class LossConfig:
     # Contrast losses
     contrast_margin: float = 1.0
-    contrast_threshold: float = 0.3   # min prob to count as cluster member (lower = more triplets)
+    contrast_threshold: float = 0.3   # min prob to count as cluster member
     max_triplets: int = 256           # triplets to mine per batch per cluster
 
     # Raise loss
-    raise_margin: float = 1.0        # enforces chi_D > chi_G + margin
-
-    # Hierarchy loss weight
-    hier_weight: float = 1.0
-
-    # Uniformity loss weight (collapse prevention)
-    uniform_weight: float = 0.5
+    raise_margin: float = 1.0        # enforces chi_{i+1} > chi_i + margin
 
     # Loss weights
-    w_genus: float = 1.0
-    w_diff:  float = 1.0
+    w_contrast: float = 1.0   # applied per alive level, averaged
     w_raise: float = 1.0
-    w_hier:  float = 0.5
-    w_unif:  float = 2.0             # strong anti-collapse
+    w_hier: float = 0.5
+    w_unif: float = 2.0       # strong anti-collapse
 
 
 def _soft_triplet_loss(
@@ -67,10 +56,6 @@ def _soft_triplet_loss(
     For each cluster k (by argmax assignment):
       - Positives: images assigned to cluster k
       - Negatives: images assigned to any other cluster
-
-    The loss encourages |z_a - z_p| < |z_a - z_n| - margin,
-    which is the soft version of SimilarByContrast:
-      Gap(a, b) < Gap(a, c)  and  Gap(a, b) < Gap(b, c)
 
     Lean analogue:
       Each satisfied triplet is an empirical CCDWitness3:
@@ -128,130 +113,153 @@ def _soft_triplet_loss(
     return torch.stack(losses).mean()
 
 
-def loss_genus_contrast(out: dict, cfg: LossConfig) -> torch.Tensor:
+def loss_contrast(out: dict, cfg: LossConfig) -> tuple[torch.Tensor, dict]:
     """
-    CCD3 at the genus level.
+    CCD3 at each alive level, averaged.
 
-    Two images belong together at the genus level if they share a genus cluster.
-    The contrast comes from a different genus cluster.
-
-    Lean: SimilarByContrast(chi_G(a), chi_G(b), chi_G(c))
-    where a, b share a genus, c does not.
-
-    What this discovers: the top-level grouping of all images
-    (e.g., "digit-like" vs "clothing-like" without being told which is which).
+    Lean: SimilarByContrast at each level of the hierarchy.
     """
-    return _soft_triplet_loss(
-        z=out["z_G"],
-        p=out["p_G"],
-        margin=cfg.contrast_margin,
-        threshold=cfg.contrast_threshold,
-        max_triplets=cfg.max_triplets,
-    )
+    device = out["z"].device
+    details = {}
+    values = []
+
+    for i, lvl in enumerate(out["levels"]):
+        if not lvl["alive"]:
+            continue
+        L = _soft_triplet_loss(
+            z=lvl["z"], p=lvl["p"],
+            margin=cfg.contrast_margin,
+            threshold=cfg.contrast_threshold,
+            max_triplets=cfg.max_triplets,
+        )
+        details[f"contrast_L{i}"] = L.item()
+        values.append(L)
+
+    if not values:
+        return torch.tensor(0.0, device=device, requires_grad=True), details
+    avg = torch.stack(values).mean()
+    return avg, details
 
 
-def loss_diff_contrast(out: dict, cfg: LossConfig) -> torch.Tensor:
+def loss_raise(out: dict, cfg: LossConfig) -> tuple[torch.Tensor, dict]:
     """
-    CCD3 at the differentia level.
+    Raise: chi_i < chi_{i+1} for all adjacent level pairs.
 
-    Two images belong together at the differentia level if they share a
-    differentia cluster. The contrast comes from a different differentia cluster.
+    Computed for ALL pairs (not just alive) since chi values are always
+    valid — the depth linear layer produces output regardless of prototype
+    aliveness. This keeps the depth ordering intact even for dead levels.
 
-    Lean: SimilarByContrast(chi_D(a), chi_D(b), chi_D(c))
-    where a, b share a differentia, c is in a different differentia cluster
-    (but may share the genus -- that's the within-genus contrast).
-
-    What this discovers: the sub-groupings within each genus cluster
-    (e.g., the 10 digit types, without being told there are 10).
+    Lean: SignificanceRaise.compose — depth increases at each level.
     """
-    return _soft_triplet_loss(
-        z=out["z_D"],
-        p=out["p_D"],
-        margin=cfg.contrast_margin,
-        threshold=cfg.contrast_threshold,
-        max_triplets=cfg.max_triplets,
-    )
+    device = out["z"].device
+    levels = out["levels"]
+    n = len(levels)
+    details = {}
+    values = []
+
+    for i in range(n - 1):
+        chi_lo = levels[i]["chi"]
+        chi_hi = levels[i + 1]["chi"]
+        L = F.relu(cfg.raise_margin + chi_lo - chi_hi).mean()
+        details[f"raise_L{i}_{i+1}"] = L.item()
+        values.append(L)
+
+    if not values:
+        return torch.tensor(0.0, device=device, requires_grad=True), details
+    avg = torch.stack(values).mean()
+    return avg, details
 
 
-def loss_raise(out: dict, cfg: LossConfig) -> torch.Tensor:
+def loss_hierarchy(out: dict, cfg: LossConfig) -> tuple[torch.Tensor, dict]:
     """
-    Raise: chi_G < chi_D on every image.
+    Hierarchy: finer level predicts coarser level.
 
-    This is the directed depth ordering -- differentia must be strictly
-    deeper than genus.
+    H(p_i | p_{i+1}) for each adjacent pair where both are alive —
+    the conditional entropy of the coarser level given the finer level
+    should be low.
 
-    Lean: KonceptDef.isEssential: forall a, Raise (genus.chi a) (differentia.chi a)
+    Lean: definiendum = genus.meet differentia, composed via KonceptDef.chain.
     """
-    chi_G = out["chi_G"]
-    chi_D = out["chi_D"]
-    return F.relu(cfg.raise_margin + chi_G - chi_D).mean()
+    device = out["z"].device
+    levels = out["levels"]
+    n = len(levels)
+    details = {}
+    values = []
+
+    for i in range(n - 1):
+        if not levels[i]["alive"] or not levels[i + 1]["alive"]:
+            continue
+
+        p_coarse = levels[i]["p"]      # (B, k_i)
+        p_fine = levels[i + 1]["p"]    # (B, k_{i+1})
+
+        # For each fine cluster, compute the expected coarse distribution
+        joint = p_fine.T @ p_coarse                          # (k_{i+1}, k_i)
+        joint = joint / (joint.sum(dim=-1, keepdim=True) + 1e-8)
+
+        # Entropy of coarse given each fine cluster — should be low
+        entropy = -(joint * (joint + 1e-8).log()).sum(dim=-1)  # (k_{i+1},)
+
+        # Weight by how much each fine cluster is used
+        fine_usage = p_fine.mean(dim=0)   # (k_{i+1},)
+        L = (fine_usage * entropy).sum()
+        details[f"hier_L{i}_{i+1}"] = L.item()
+        values.append(L)
+
+    if not values:
+        return torch.tensor(0.0, device=device, requires_grad=True), details
+    avg = torch.stack(values).mean()
+    return avg, details
 
 
-def loss_hierarchy(out: dict, cfg: LossConfig) -> torch.Tensor:
+def loss_uniform(out: dict, cfg: LossConfig) -> tuple[torch.Tensor, dict]:
     """
-    Hierarchy: differentia assignment determines genus assignment.
+    Anti-collapse: no single cluster absorbs everything, per alive level.
 
-    The definiendum is the meet of genus and differentia:
-      definiendum = genus AND differentia
-
-    Implemented as: minimize H(p_G | p_D) -- the conditional entropy of
-    genus assignment given differentia assignment.
-
-    Lean: definiendum = genus.meet differentia
+    Lean: no_universal_ccd — a universal concept cannot be CCD-grounded.
     """
-    p_G = out["p_G"]   # (B, k_genus)
-    p_D = out["p_D"]   # (B, k_diff)
+    device = out["z"].device
+    details = {}
+    values = []
 
-    # For each differentia cluster d, compute the expected genus distribution
-    joint = p_D.T @ p_G                    # (k_diff, k_genus)
-    joint = joint / (joint.sum(dim=-1, keepdim=True) + 1e-8)
+    for i, lvl in enumerate(out["levels"]):
+        if not lvl["alive"]:
+            continue
+        marginal = lvl["p"].mean(dim=0)
+        L = marginal.max()
+        details[f"unif_L{i}"] = L.item()
+        values.append(L)
 
-    # Entropy of genus given each differentia cluster -- should be low
-    entropy = -(joint * (joint + 1e-8).log()).sum(dim=-1)  # (k_diff,)
-
-    # Weight by how much each differentia cluster is used
-    diff_usage = p_D.mean(dim=0)   # (k_diff,)
-    return (diff_usage * entropy).sum()
-
-
-def loss_uniform(out: dict, cfg: LossConfig) -> torch.Tensor:
-    """
-    Anti-collapse: no single cluster absorbs everything.
-
-    Lean: no_universal_ccd -- a universal concept cannot be CCD-grounded.
-
-    Penalizes the maximum marginal assignment mass. This prevents any one
-    cluster from dominating without forcing uniform spread -- clusters are
-    free to concentrate or die, as long as no single one goes universal.
-    """
-    p_G_marginal = out["p_G"].mean(dim=0)
-    p_D_marginal = out["p_D"].mean(dim=0)
-    return p_G_marginal.max() + p_D_marginal.max()
+    if not values:
+        return torch.tensor(0.0, device=device, requires_grad=True), details
+    avg = torch.stack(values).mean()
+    return avg, details
 
 
 def total_loss(out: dict, cfg: LossConfig) -> tuple[torch.Tensor, dict]:
-    """Compute all five losses and return their weighted sum plus breakdown."""
-    L_gc = loss_genus_contrast(out, cfg)
-    L_dc = loss_diff_contrast(out, cfg)
-    L_r  = loss_raise(out, cfg)
-    L_h  = loss_hierarchy(out, cfg)
-    L_u  = loss_uniform(out, cfg)
+    """Compute all losses and return their weighted sum plus breakdown."""
+    L_c, d_c = loss_contrast(out, cfg)
+    L_r, d_r = loss_raise(out, cfg)
+    L_h, d_h = loss_hierarchy(out, cfg)
+    L_u, d_u = loss_uniform(out, cfg)
 
     total = (
-        cfg.w_genus * L_gc +
-        cfg.w_diff  * L_dc +
-        cfg.w_raise * L_r  +
-        cfg.w_hier  * L_h  +
-        cfg.w_unif  * L_u
+        cfg.w_contrast * L_c +
+        cfg.w_raise * L_r +
+        cfg.w_hier * L_h +
+        cfg.w_unif * L_u
     )
 
     breakdown = {
-        "genus_contrast": L_gc.item(),
-        "diff_contrast":  L_dc.item(),
-        "raise":          L_r.item(),
-        "hierarchy":      L_h.item(),
-        "uniform":        L_u.item(),
-        "total":          total.item(),
+        "contrast": L_c.item(),
+        "raise": L_r.item(),
+        "hierarchy": L_h.item(),
+        "uniform": L_u.item(),
+        "total": total.item(),
     }
+    breakdown.update(d_c)
+    breakdown.update(d_r)
+    breakdown.update(d_h)
+    breakdown.update(d_u)
 
     return total, breakdown

@@ -1,12 +1,13 @@
 """
-Interpretability report for unsupervised significance model.
+Interpretability report for unsupervised N-level significance model.
 
-Checks whether the discovered clusters align with the formal structure:
-1. Raise satisfaction: chi_D > chi_G on every image
-2. CCD witness verification: for each discovered cluster, find actual
-   image triplets satisfying both gap inequalities of SimilarByContrast
-3. Genus/differentia role clarity: do the depth values separate cleanly?
-4. Hierarchy check: does differentia assignment predict genus assignment?
+Checks whether the discovered hierarchy aligns with the formal structure:
+1. Raise satisfaction: chi increases at each level
+2. Discovered clusters: per alive level with purity, size, top-3 labels
+3. CCD witness verification: at the finest alive level
+4. Hierarchy check: does each finer level predict its coarser parent?
+5. CCD₃ coverage: per alive level
+6. Hierarchy summary: compact view of alive/dead levels and effective depth
 
 All of this is post-hoc -- the model was trained without labels.
 The eval_labels are used only here to interpret what was discovered.
@@ -15,7 +16,6 @@ The eval_labels are used only here to interpret what was discovered.
 from __future__ import annotations
 
 import argparse
-import sys
 from collections import Counter
 
 import torch
@@ -61,145 +61,171 @@ def generate_report(model_path: str | None = None) -> None:
 
     _, test_loader = make_loaders(DataConfig())
 
-    # Collect all outputs
-    all_chi_G, all_chi_D = [], []
-    all_p_G, all_p_D = [], []
-    all_z_G, all_z_D = [], []
+    # Collect all outputs per level
+    n_levels = len(model.levels)
+    all_chi = [[] for _ in range(n_levels)]
+    all_p = [[] for _ in range(n_levels)]
+    all_z = [[] for _ in range(n_levels)]
     all_eval_labels = []
 
     with torch.no_grad():
         for images, eval_labels in test_loader:
             images = images.to(device)
             out = model(images)
-            all_chi_G.append(out["chi_G"].cpu())
-            all_chi_D.append(out["chi_D"].cpu())
-            all_p_G.append(out["p_G"].cpu())
-            all_p_D.append(out["p_D"].cpu())
-            all_z_G.append(out["z_G"].cpu())
-            all_z_D.append(out["z_D"].cpu())
+            for i, lvl in enumerate(out["levels"]):
+                all_chi[i].append(lvl["chi"].cpu())
+                all_p[i].append(lvl["p"].cpu())
+                all_z[i].append(lvl["z"].cpu())
             all_eval_labels.append(eval_labels)
 
-    chi_G = torch.cat(all_chi_G).numpy()
-    chi_D = torch.cat(all_chi_D).numpy()
-    p_G = torch.cat(all_p_G)
-    p_D = torch.cat(all_p_D)
-    z_G = torch.cat(all_z_G)
-    z_D = torch.cat(all_z_D)
-    eval_labels = torch.cat(all_eval_labels).numpy()
+    # Per-level tensors
+    level_data = []
+    for i in range(n_levels):
+        chi = torch.cat(all_chi[i]).numpy()
+        p = torch.cat(all_p[i])
+        z = torch.cat(all_z[i])
+        assignments = p.argmax(dim=-1).numpy()
+        level_data.append({
+            "chi": chi,
+            "p": p,
+            "z": z,
+            "assignments": assignments,
+        })
 
-    genus_assignments = p_G.argmax(dim=-1).numpy()
-    diff_assignments = p_D.argmax(dim=-1).numpy()
+    eval_labels = torch.cat(all_eval_labels).numpy()
+    alive_indices = [i for i in range(n_levels) if model.levels[i].is_alive]
+    ks = model_cfg.k_per_level()
 
     print("\n" + "=" * 70)
     print("SIGNIFICANCE FORMALIZATION — UNSUPERVISED INTERPRETABILITY REPORT")
     print("=" * 70)
 
-    # 1. Raise satisfaction
-    print("\n── 1. RAISE SATISFACTION (chi_G < chi_D) ──")
-    raise_rate = (chi_D > chi_G).mean()
-    mean_gap = (chi_D - chi_G).mean()
-    print(f"  Raise satisfied: {raise_rate * 100:.2f}% of images")
-    print(f"  Mean chi_G: {chi_G.mean():.3f}")
-    print(f"  Mean chi_D: {chi_D.mean():.3f}")
-    print(f"  Mean gap (chi_D - chi_G): {mean_gap:.3f}")
-    print(f"  Lean analogue: KonceptDef.isEssential")
+    # ── 1. RAISE SATISFACTION ──
+    print("\n── 1. RAISE SATISFACTION (chi_i < chi_{i+1}) ──")
+    for i in range(n_levels - 1):
+        chi_lo = level_data[i]["chi"]
+        chi_hi = level_data[i + 1]["chi"]
+        rate = (chi_hi > chi_lo).mean()
+        gap = (chi_hi - chi_lo).mean()
+        print(f"  L{i}→L{i+1}: {rate * 100:.1f}% satisfied  "
+              f"(mean gap: {gap:.3f})")
 
-    # 2. Discovered genus clusters
-    print("\n── 2. DISCOVERED GENUS CLUSTERS ──")
-    k_genus = model_cfg.k_genus
-    for g in range(k_genus):
-        mask = genus_assignments == g
-        n = mask.sum()
-        if n == 0:
-            continue
-        labels_here = eval_labels[mask]
-        top = Counter(labels_here.tolist()).most_common(3)
-        top_str = ", ".join(f"{label_name(int(l))}:{c}" for l, c in top)
-        purity = Counter(labels_here.tolist()).most_common(1)[0][1] / n
-        print(f"  Genus cluster {g}: n={n} purity={purity:.2f} "
-              f"top3=[{top_str}]")
-    print(f"  Lean analogue: genus.pred (which images belong to this genus?)")
+    # Overall chain across alive levels
+    if len(alive_indices) >= 2:
+        chain_ok = np.ones(len(eval_labels), dtype=bool)
+        for j in range(len(alive_indices) - 1):
+            lo = alive_indices[j]
+            hi = alive_indices[j + 1]
+            chain_ok &= level_data[hi]["chi"] > level_data[lo]["chi"]
+        print(f"  Overall chain (alive levels): {chain_ok.mean() * 100:.1f}%")
 
-    # 3. Discovered differentia clusters
-    print("\n── 3. DISCOVERED DIFFERENTIA CLUSTERS ──")
-    k_diff = model_cfg.k_diff
-    active_diff = []
-    for d in range(k_diff):
-        mask = diff_assignments == d
-        n = mask.sum()
-        if n < 10:
-            continue
-        active_diff.append(d)
-        labels_here = eval_labels[mask]
-        top = Counter(labels_here.tolist()).most_common(3)
-        top_str = ", ".join(f"{label_name(int(l))}:{c}" for l, c in top)
-        purity = Counter(labels_here.tolist()).most_common(1)[0][1] / n
-        genus_here = genus_assignments[mask]
-        dominant_genus = Counter(genus_here.tolist()).most_common(1)[0][0]
-        print(f"  Diff cluster {d:2d}: n={n:5d} purity={purity:.2f} "
-              f"genus={dominant_genus} top3=[{top_str}]")
-    print(f"  Active differentia clusters: {len(active_diff)}/{k_diff}")
-    print(f"  Lean analogue: differentia.pred")
+    # Depth profile
+    print("  Depth profile (mean chi per level):")
+    for i in range(n_levels):
+        status = "alive" if i in alive_indices else "DEAD"
+        print(f"    L{i}: mean_chi={level_data[i]['chi'].mean():.3f}  [{status}]")
+    print(f"  Lean analogue: SignificanceRaise.compose (transitive depth ordering)")
 
-    # 4. CCD witnesses
-    print("\n── 4. CCD WITNESSES (SimilarByContrast verification) ──")
-    print(f"  {'Cluster':>10} {'Contrast':>10} "
-          f"{'|a-b|':>8} {'|a-c|':>8} {'|b-c|':>8} {'Holds?':>8}")
-    print("  " + "-" * 58)
+    # ── 2. DISCOVERED CLUSTERS ──
+    print("\n── 2. DISCOVERED CLUSTERS (per alive level) ──")
+    for i in alive_indices:
+        assignments = level_data[i]["assignments"]
+        k = ks[i]
+        eff_k = model.levels[i].effective_k
+        print(f"\n  Level {i} ({eff_k} active / {k} total):")
 
-    for d in active_diff[:15]:
-        mask_d = (diff_assignments == d).nonzero()[0]
-        if len(mask_d) < 2:
-            continue
+        for c in range(k):
+            mask = assignments == c
+            n = mask.sum()
+            if n < 10:
+                continue
+            labels_here = eval_labels[mask]
+            top = Counter(labels_here.tolist()).most_common(3)
+            top_str = ", ".join(f"{label_name(int(l))}:{cnt}" for l, cnt in top)
+            purity = Counter(labels_here.tolist()).most_common(1)[0][1] / n
+            print(f"    Cluster {c:2d}: n={n:5d} purity={purity:.2f} "
+                  f"top3=[{top_str}]")
 
-        a_idx, b_idx = mask_d[0], mask_d[1]
-        chi_a = chi_D[a_idx]
-        chi_b = chi_D[b_idx]
+    # ── 3. CCD WITNESSES ──
+    print("\n── 3. CCD WITNESSES (SimilarByContrast at finest alive level) ──")
+    if alive_indices:
+        finest = alive_indices[-1]
+        assignments = level_data[finest]["assignments"]
+        chi = level_data[finest]["chi"]
+        k = ks[finest]
 
-        other_mask = (diff_assignments != d).nonzero()[0]
-        if len(other_mask) == 0:
-            continue
+        # Find active clusters
+        active = [c for c in range(k) if (assignments == c).sum() >= 10]
 
-        gaps_to_a = np.abs(chi_D[other_mask] - chi_a)
-        c_idx = other_mask[gaps_to_a.argmax()]
-        chi_c = chi_D[c_idx]
+        print(f"  Level {finest} — {len(active)} active clusters")
+        print(f"  {'Cluster':>10} {'Contrast':>10} "
+              f"{'|a-b|':>8} {'|a-c|':>8} {'|b-c|':>8} {'Holds?':>8}")
+        print("  " + "-" * 58)
 
-        gap_ab = abs(chi_a - chi_b)
-        gap_ac = abs(chi_a - chi_c)
-        gap_bc = abs(chi_b - chi_c)
-        holds = gap_ab < gap_ac and gap_ab < gap_bc
+        for d in active[:15]:
+            mask_d = np.where(assignments == d)[0]
+            if len(mask_d) < 2:
+                continue
 
-        contrast_label = label_name(int(eval_labels[c_idx]))
-        cluster_label = label_name(int(eval_labels[a_idx]))
+            a_idx, b_idx = mask_d[0], mask_d[1]
+            chi_a = chi[a_idx]
+            chi_b = chi[b_idx]
 
-        print(f"  {cluster_label:>10} {contrast_label:>10} "
-              f"{gap_ab:>8.3f} {gap_ac:>8.3f} {gap_bc:>8.3f} "
-              f"{'Y' if holds else 'X':>8}")
+            other_mask = np.where(assignments != d)[0]
+            if len(other_mask) == 0:
+                continue
 
-    print(f"  Lean analogue: CCDWitness3")
+            gaps_to_a = np.abs(chi[other_mask] - chi_a)
+            c_idx = other_mask[gaps_to_a.argmax()]
+            chi_c = chi[c_idx]
 
-    # 5. Hierarchy check
-    print("\n── 5. HIERARCHY CHECK (differentia -> genus) ──")
-    print("  Each diff cluster should map to exactly ONE genus cluster.")
-    for d in active_diff[:10]:
-        mask_d = diff_assignments == d
-        genus_here = genus_assignments[mask_d]
-        genus_dist = Counter(genus_here.tolist())
-        total = sum(genus_dist.values())
-        dominant_g, dominant_n = genus_dist.most_common(1)[0]
-        frac = dominant_n / total
-        print(f"  Diff {d:2d} -> genus {dominant_g} ({frac * 100:.0f}% of members)")
-    print(f"  Lean analogue: definiendum = genus.meet differentia")
+            gap_ab = abs(chi_a - chi_b)
+            gap_ac = abs(chi_a - chi_c)
+            gap_bc = abs(chi_b - chi_c)
+            holds = gap_ab < gap_ac and gap_ab < gap_bc
 
-    # 6. CCD₃ Coverage
-    print("\n── 6. CCD₃ COVERAGE (SimilarByContrast over embeddings) ──")
+            contrast_label = label_name(int(eval_labels[c_idx]))
+            cluster_label = label_name(int(eval_labels[a_idx]))
+
+            print(f"  {cluster_label:>10} {contrast_label:>10} "
+                  f"{gap_ab:>8.3f} {gap_ac:>8.3f} {gap_bc:>8.3f} "
+                  f"{'Y' if holds else 'X':>8}")
+
+        print(f"  Lean analogue: CCDWitness3")
+
+    # ── 4. HIERARCHY CHECK ──
+    print("\n── 4. HIERARCHY CHECK (finer level → coarser level) ──")
+    print("  Each cluster at level i+1 should map to one cluster at level i.")
+    for j in range(len(alive_indices) - 1):
+        lo = alive_indices[j]
+        hi = alive_indices[j + 1]
+        assignments_hi = level_data[hi]["assignments"]
+        assignments_lo = level_data[lo]["assignments"]
+        k_hi = ks[hi]
+
+        active_hi = [c for c in range(k_hi) if (assignments_hi == c).sum() >= 10]
+        print(f"\n  L{hi} → L{lo} ({len(active_hi)} active clusters at L{hi}):")
+
+        for d in active_hi[:10]:
+            mask_d = assignments_hi == d
+            lo_here = assignments_lo[mask_d]
+            lo_dist = Counter(lo_here.tolist())
+            total = sum(lo_dist.values())
+            dominant_c, dominant_n = lo_dist.most_common(1)[0]
+            frac = dominant_n / total
+            print(f"    L{hi} cluster {d:2d} → L{lo} cluster {dominant_c} "
+                  f"({frac * 100:.0f}% of members)")
+
+    print(f"  Lean analogue: definiendum = genus.meet differentia (composed via chain)")
+
+    # ── 5. CCD₃ COVERAGE ──
+    print("\n── 5. CCD₃ COVERAGE (SimilarByContrast over embeddings) ──")
     print("  For each active cluster, sample triplets (a, b from cluster,")
     print("  c from outside) and check both gap inequalities hold.")
     rng = np.random.default_rng(42)
     max_triplets = 100
 
     def ccd3_coverage(assignments, embeddings, cluster_ids):
-        """Compute per-cluster and overall CCD₃ coverage."""
         per_cluster = {}
         for c in cluster_ids:
             in_mask = np.where(assignments == c)[0]
@@ -223,32 +249,53 @@ def generate_report(model_path: str | None = None) -> None:
             per_cluster[c] = satisfied / n_pairs
         return per_cluster
 
-    # Genus CCD₃
-    active_genus = [g for g in range(model_cfg.k_genus)
-                    if (genus_assignments == g).sum() >= 10]
-    genus_ccd3 = ccd3_coverage(genus_assignments, z_G, active_genus)
-    print(f"\n  Genus clusters ({len(genus_ccd3)} active):")
-    for g, cov in sorted(genus_ccd3.items()):
-        n = (genus_assignments == g).sum()
-        print(f"    Genus {g:2d}: coverage={cov:.3f}  (n={n})")
-    if genus_ccd3:
-        genus_mean = np.mean(list(genus_ccd3.values()))
-        print(f"    Overall genus CCD₃: {genus_mean:.3f}")
+    for i in alive_indices:
+        assignments = level_data[i]["assignments"]
+        z = level_data[i]["z"]
+        k = ks[i]
+        active = [c for c in range(k) if (assignments == c).sum() >= 10]
+        ccd3 = ccd3_coverage(assignments, z, active)
 
-    # Differentia CCD₃
-    diff_ccd3 = ccd3_coverage(diff_assignments, z_D, active_diff)
-    print(f"\n  Differentia clusters ({len(diff_ccd3)} active):")
-    for d, cov in sorted(diff_ccd3.items()):
-        n = (diff_assignments == d).sum()
-        print(f"    Diff {d:2d}: coverage={cov:.3f}  (n={n})")
-    if diff_ccd3:
-        diff_mean = np.mean(list(diff_ccd3.values()))
-        print(f"    Overall differentia CCD₃: {diff_mean:.3f}")
+        print(f"\n  Level {i} ({len(ccd3)} active clusters):")
+        for c, cov in sorted(ccd3.items()):
+            n = (assignments == c).sum()
+            print(f"    Cluster {c:2d}: coverage={cov:.3f}  (n={n})")
+        if ccd3:
+            mean_cov = np.mean(list(ccd3.values()))
+            print(f"    Level {i} mean CCD₃: {mean_cov:.3f}")
 
-    if genus_ccd3 and diff_ccd3:
-        overall = np.mean(list(genus_ccd3.values()) + list(diff_ccd3.values()))
-        print(f"\n  Overall CCD₃ coverage: {overall:.3f}")
     print(f"  Lean analogue: SimilarByContrast (gap inequalities on embedding space)")
+
+    # ── 6. HIERARCHY SUMMARY ──
+    print("\n── 6. HIERARCHY SUMMARY ──")
+    print(f"  Overcomplete levels: {n_levels}")
+    print(f"  Effective depth: {len(alive_indices)}")
+    print(f"  Alive levels: {alive_indices}")
+    print()
+    for i in range(n_levels):
+        eff_k = model.levels[i].effective_k
+        status = "ALIVE" if i in alive_indices else "DEAD"
+        mean_chi = level_data[i]["chi"].mean()
+
+        if i in alive_indices:
+            assignments = level_data[i]["assignments"]
+            purity_vals = []
+            for c in range(ks[i]):
+                mask = assignments == c
+                n = mask.sum()
+                if n < 10:
+                    continue
+                labels_here = eval_labels[mask]
+                majority = Counter(labels_here.tolist()).most_common(1)[0][1]
+                purity_vals.append(majority / n)
+            mean_pur = np.mean(purity_vals) if purity_vals else 0.0
+            print(f"  L{i}: {status:5s}  k={eff_k:3d}/{ks[i]:<3d}  "
+                  f"mean_chi={mean_chi:6.3f}  mean_purity={mean_pur:.3f}")
+        else:
+            print(f"  L{i}: {status:5s}  k={eff_k:3d}/{ks[i]:<3d}  "
+                  f"mean_chi={mean_chi:6.3f}")
+
+    print(f"\n  Lean analogue: KonceptDef.chain with chain_depth_bound")
 
     print("\n" + "=" * 70)
 

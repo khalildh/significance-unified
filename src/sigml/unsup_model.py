@@ -1,26 +1,31 @@
 """
-model.py — Two-level structured encoder for unsupervised significance learning.
+model.py — N-level hierarchical encoder for unsupervised significance learning.
 
 Architecture:
   image → CNN encoder → shared representation z ∈ ℝ^embed_dim
                        ↓
-          ┌────────────┴────────────┐
-     Genus head               Differentia head
-   z_G ∈ ℝ^genus_dim        z_D ∈ ℝ^diff_dim
-   χ_G ∈ ℝ  (depth)         χ_D ∈ ℝ  (depth)
-   p_G ∈ Δ^{k_G} (soft)     p_D ∈ Δ^{k_D} (soft)
+          ┌──── Level 0 (most general) ────┐
+          │  z_0 ∈ ℝ^level_dim             │
+          │  χ_0 ∈ ℝ  (depth)              │
+          │  p_0 ∈ Δ^{k_0} (soft)          │
+          └────────────────────────────────┘
+                      ...
+          ┌──── Level L-1 (most specific) ─┐
+          │  z_{L-1} ∈ ℝ^level_dim         │
+          │  χ_{L-1} ∈ ℝ  (depth)          │
+          │  p_{L-1} ∈ Δ^{k_{L-1}} (soft)  │
+          └────────────────────────────────┘
 
 The model has NO classification heads. Cluster assignments emerge from
-the embeddings via a learned prototype layer (soft nearest-neighbour
+the embeddings via learned prototype layers (soft nearest-neighbour
 to k learned centroids). No labels are used anywhere.
 
+Both width (prototypes per level) and depth (number of alive levels)
+are discovered via overcomplete initialization + CCD₃ witnessability pruning.
+
 Lean analogue:
-  z_G  →  genus.χ (the characteristic, as a vector before projection)
-  χ_G  →  genus depth scalar
-  p_G  →  soft genus.pred (which genus cluster does this belong to?)
-  z_D  →  differentia.χ
-  χ_D  →  differentia depth scalar
-  p_D  →  soft differentia.pred
+  Raise is transitive (SignificanceRaise.compose), definition chains
+  compose (KonceptDef.chain), depth accumulates (chain_depth_bound).
 """
 
 import torch
@@ -32,13 +37,22 @@ from dataclasses import dataclass
 @dataclass
 class ModelConfig:
     embed_dim: int = 128      # shared CNN output dim
-    genus_dim: int = 64       # genus embedding dim
-    diff_dim: int = 64        # differentia embedding dim
-    k_genus: int = 16         # overcomplete genus clusters (pruned during training)
-    k_diff: int = 100         # overcomplete differentia clusters (pruned during training)
-    temp: float = 0.5         # softmax temperature for soft assignments (higher = softer)
+    n_levels: int = 5         # overcomplete depth (pruned during training)
+    level_dim: int = 64       # embedding dim per level (shared)
+    k_min: int = 8            # prototypes at level 0 (most general)
+    k_max: int = 100          # prototypes at level L-1 (most specific)
+    temp: float = 0.5         # softmax temperature for soft assignments
     prune_threshold: float = 0.5    # min CCD₃ witnessability to stay alive
     prune_patience: int = 3         # consecutive epochs below threshold before pruning
+
+    def k_per_level(self) -> list[int]:
+        """Geometric progression from k_min to k_max."""
+        if self.n_levels == 1:
+            return [self.k_min]
+        ratio = (self.k_max / self.k_min) ** (1.0 / (self.n_levels - 1))
+        ks = [max(1, round(self.k_min * ratio**i)) for i in range(self.n_levels)]
+        ks[-1] = self.k_max  # force exact
+        return ks
 
 
 class CNNEncoder(nn.Module):
@@ -71,15 +85,9 @@ class PrototypeLayer(nn.Module):
     """
     Soft assignment to k learned prototypes via temperature-scaled cosine sim.
 
-    Supports overcomplete initialization with pruning: prototypes whose mean
-    assignment mass stays below `prune_threshold` for `prune_patience` consecutive
-    epochs are marked dead and excluded from softmax (set to -inf).
-
-    Returns:
-      probs: (B, k)  soft cluster assignment probabilities
-
-    This is the differentiable analogue of 'which concept does this fall under?'
-    The prototypes are the concept centroids; the assignment is soft pred.
+    Supports overcomplete initialization with pruning: prototypes whose
+    CCD₃ witnessability stays below threshold for patience epochs are
+    marked dead and excluded from softmax (set to -inf).
     """
 
     def __init__(self, dim: int, k: int, temp: float):
@@ -98,18 +106,10 @@ class PrototypeLayer(nn.Module):
         return F.softmax(sim / self.temp, dim=-1)
 
     def prune(self, mean_mass: torch.Tensor, threshold: float, patience: int) -> None:
-        """Update dead_epochs and mark prototypes dead when patience exhausted.
-
-        Args:
-            mean_mass: (k,) mean assignment probability per prototype over the dataset.
-            threshold: minimum mass to be considered alive.
-            patience: consecutive epochs below threshold before pruning.
-        """
+        """Update dead_epochs and mark prototypes dead when patience exhausted."""
         below = mean_mass.to(self.alive.device) < threshold
-        # Only track prototypes that are still alive
         self.dead_epochs[self.alive & below] += 1
         self.dead_epochs[self.alive & ~below] = 0
-        # Kill prototypes that have been below threshold for `patience` epochs
         newly_dead = self.alive & (self.dead_epochs >= patience)
         if newly_dead.any():
             self.alive[newly_dead] = False
@@ -119,46 +119,64 @@ class PrototypeLayer(nn.Module):
         return int(self.alive.sum().item())
 
 
+class HierarchyLevel(nn.Module):
+    """One level of the concept hierarchy: projection + depth + prototype layer.
+
+    Lean analogue: one step in a KonceptDef.chain — a concept at a
+    particular depth with its own characteristic function and predicate.
+    """
+
+    def __init__(self, embed_dim: int, level_dim: int, k: int, temp: float):
+        super().__init__()
+        self.proj = nn.Linear(embed_dim, level_dim)
+        self.depth = nn.Linear(embed_dim, 1)
+        self.proto = PrototypeLayer(level_dim, k, temp)
+
+    def forward(self, z: torch.Tensor) -> dict:
+        z_proj = self.proj(z)                    # (B, level_dim)
+        chi = self.depth(z).squeeze(-1)          # (B,)
+        p = self.proto(z_proj)                   # (B, k)
+        return {"z": z_proj, "chi": chi, "p": p}
+
+    @property
+    def effective_k(self) -> int:
+        return self.proto.effective_k
+
+    @property
+    def is_alive(self) -> bool:
+        return self.effective_k > 0
+
+
 class SigMLUnsupervised(nn.Module):
     """
-    Full two-level significance model.
+    N-level hierarchical significance model.
 
-    forward() returns a dict with all heads needed by the losses.
+    forward() returns a dict with all levels needed by the losses.
     No labels are used or expected.
+
+    Lean analogue: a chain of KonceptDefs with Raise composing across
+    levels and CCD₃ witnessability pruning determining which levels survive.
     """
 
     def __init__(self, cfg: ModelConfig):
         super().__init__()
         self.cfg = cfg
-
-        # Shared encoder
         self.encoder = CNNEncoder(cfg.embed_dim)
-
-        # Genus head
-        self.genus_proj = nn.Linear(cfg.embed_dim, cfg.genus_dim)
-        self.genus_depth = nn.Linear(cfg.embed_dim, 1)
-        self.genus_proto = PrototypeLayer(cfg.genus_dim, cfg.k_genus, cfg.temp)
-
-        # Differentia head
-        self.diff_proj = nn.Linear(cfg.embed_dim, cfg.diff_dim)
-        self.diff_depth = nn.Linear(cfg.embed_dim, 1)
-        self.diff_proto = PrototypeLayer(cfg.diff_dim, cfg.k_diff, cfg.temp)
+        self.levels = nn.ModuleList([
+            HierarchyLevel(cfg.embed_dim, cfg.level_dim, k, cfg.temp)
+            for k in cfg.k_per_level()
+        ])
 
     def forward(self, x: torch.Tensor) -> dict:
-        z = self.encoder(x)                          # (B, embed_dim)
-
-        # Genus
-        z_G = self.genus_proj(z)                     # (B, genus_dim)
-        chi_G = self.genus_depth(z).squeeze(-1)      # (B,)
-        p_G = self.genus_proto(z_G)                  # (B, k_genus)
-
-        # Differentia
-        z_D = self.diff_proj(z)                      # (B, diff_dim)
-        chi_D = self.diff_depth(z).squeeze(-1)       # (B,)
-        p_D = self.diff_proto(z_D)                   # (B, k_diff)
-
+        z = self.encoder(x)                      # (B, embed_dim)
+        level_outs = []
+        for lvl in self.levels:
+            out = lvl(z)
+            out["alive"] = lvl.is_alive
+            out["effective_k"] = lvl.effective_k
+            level_outs.append(out)
         return {
             "z": z,
-            "z_G": z_G, "chi_G": chi_G, "p_G": p_G,
-            "z_D": z_D, "chi_D": chi_D, "p_D": p_D,
+            "n_levels": len(self.levels),
+            "levels": level_outs,
         }

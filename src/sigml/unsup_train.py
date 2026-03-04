@@ -1,8 +1,11 @@
 """
-Training loop for unsupervised significance learning.
+Training loop for unsupervised significance learning with N-level hierarchy.
 
 No labels are used during training. Evaluation uses eval_labels
 to measure cluster quality post-hoc via cluster purity.
+
+Both width (prototypes per level) and depth (number of alive levels)
+are discovered via overcomplete initialization + CCD₃ witnessability pruning.
 """
 
 from __future__ import annotations
@@ -10,11 +13,10 @@ from __future__ import annotations
 import argparse
 import os
 import time
+from dataclasses import dataclass, field, replace
 
 import torch
 import torch.optim as optim
-from collections import Counter
-from dataclasses import dataclass, field
 
 from sigml.unsup_data import DataConfig, make_loaders
 from sigml.unsup_model import ModelConfig, SigMLUnsupervised
@@ -60,9 +62,9 @@ def cluster_purity(assignments: torch.Tensor, eval_labels: torch.Tensor) -> floa
     return correct / n
 
 
-def raise_satisfaction_rate(chi_G: torch.Tensor, chi_D: torch.Tensor) -> float:
-    """Fraction of images where chi_D > chi_G (Raise satisfied)."""
-    return (chi_D > chi_G).float().mean().item()
+def raise_satisfaction_rate(chi_lo: torch.Tensor, chi_hi: torch.Tensor) -> float:
+    """Fraction of images where chi_hi > chi_lo (Raise satisfied)."""
+    return (chi_hi > chi_lo).float().mean().item()
 
 
 def ccd_witnessability(
@@ -102,67 +104,78 @@ def ccd_witnessability(
 
 
 def evaluate(model: SigMLUnsupervised, loader, device: str) -> dict:
+    """Evaluate model: per-level purity/witnessability, raise rates, effective depth."""
     model.eval()
+    n_levels = len(model.levels)
 
-    all_chi_G, all_chi_D = [], []
-    all_p_G, all_p_D = [], []
-    all_z_G, all_z_D = [], []
+    all_chi = [[] for _ in range(n_levels)]
+    all_p = [[] for _ in range(n_levels)]
+    all_z = [[] for _ in range(n_levels)]
     all_eval_labels = []
 
     with torch.no_grad():
         for images, eval_labels in loader:
             images = images.to(device)
             out = model(images)
-            all_chi_G.append(out["chi_G"].cpu())
-            all_chi_D.append(out["chi_D"].cpu())
-            all_p_G.append(out["p_G"].cpu())
-            all_p_D.append(out["p_D"].cpu())
-            all_z_G.append(out["z_G"].cpu())
-            all_z_D.append(out["z_D"].cpu())
+            for i, lvl in enumerate(out["levels"]):
+                all_chi[i].append(lvl["chi"].cpu())
+                all_p[i].append(lvl["p"].cpu())
+                all_z[i].append(lvl["z"].cpu())
             all_eval_labels.append(eval_labels)
 
-    chi_G = torch.cat(all_chi_G)
-    chi_D = torch.cat(all_chi_D)
-    p_G = torch.cat(all_p_G)
-    p_D = torch.cat(all_p_D)
-    z_G = torch.cat(all_z_G)
-    z_D = torch.cat(all_z_D)
     eval_labels = torch.cat(all_eval_labels)
 
-    genus_assignments = p_G.argmax(dim=-1)
-    diff_assignments = p_D.argmax(dim=-1)
+    # Per-level metrics
+    level_metrics = []
+    for i in range(n_levels):
+        chi = torch.cat(all_chi[i])
+        p = torch.cat(all_p[i])
+        z = torch.cat(all_z[i])
 
-    raise_rate = raise_satisfaction_rate(chi_G, chi_D)
-    genus_purity = cluster_purity(genus_assignments, eval_labels)
-    diff_purity = cluster_purity(diff_assignments, eval_labels)
+        assignments = p.argmax(dim=-1)
+        k = p.shape[1]
 
-    genus_used = (p_G.mean(0) > 0.01).sum().item()
-    diff_used = (p_D.mean(0) > 0.01).sum().item()
+        purity = cluster_purity(assignments, eval_labels)
+        witness = ccd_witnessability(z, assignments, k)
+        marginal = p.mean(0)
 
-    mean_chi_G = chi_G.mean().item()
-    mean_chi_D = chi_D.mean().item()
-    mean_gap = (chi_D - chi_G).mean().item()
+        level_metrics.append({
+            "purity": purity,
+            "mean_chi": chi.mean().item(),
+            "witnessability": witness,
+            "marginal": marginal,
+            "chi": chi,
+            "p": p,
+            "z": z,
+        })
 
-    # CCD₃ witnessability per cluster (pruning signal)
-    k_genus = p_G.shape[1]
-    k_diff = p_D.shape[1]
-    genus_witness = ccd_witnessability(z_G, genus_assignments, k_genus)
-    diff_witness = ccd_witnessability(z_D, diff_assignments, k_diff)
+    # Raise rates for consecutive pairs
+    alive_indices = [i for i in range(n_levels) if model.levels[i].is_alive]
+    raise_rates = {}
+
+    for i in range(n_levels - 1):
+        chi_lo = level_metrics[i]["chi"]
+        chi_hi = level_metrics[i + 1]["chi"]
+        raise_rates[f"raise_L{i}_{i+1}"] = raise_satisfaction_rate(chi_lo, chi_hi)
+
+    # Overall chain: chi_0 < chi_1 < ... across all alive levels
+    if len(alive_indices) >= 2:
+        chain_ok = torch.ones(len(eval_labels), dtype=torch.bool)
+        for j in range(len(alive_indices) - 1):
+            lo = alive_indices[j]
+            hi = alive_indices[j + 1]
+            chain_ok &= level_metrics[hi]["chi"] > level_metrics[lo]["chi"]
+        raise_rates["raise_all"] = chain_ok.float().mean().item()
+    else:
+        raise_rates["raise_all"] = 1.0  # trivially satisfied
 
     model.train()
     return {
-        "raise_rate": raise_rate,
-        "genus_purity": genus_purity,
-        "diff_purity": diff_purity,
-        "genus_clusters_used": genus_used,
-        "diff_clusters_used": diff_used,
-        "mean_chi_G": mean_chi_G,
-        "mean_chi_D": mean_chi_D,
-        "mean_gap": mean_gap,
-        "genus_marginal": p_G.mean(0),
-        "diff_marginal": p_D.mean(0),
-        "genus_witnessability": genus_witness,   # (k_genus,) CCD₃ scores
-        "diff_witnessability": diff_witness,     # (k_diff,) CCD₃ scores
+        "level_metrics": level_metrics,
+        "raise_rates": raise_rates,
+        "effective_depth": len(alive_indices),
+        "alive_levels": alive_indices,
+        "eval_labels": eval_labels,
     }
 
 
@@ -181,26 +194,27 @@ def train(cfg: TrainConfig) -> str:
     os.makedirs("results", exist_ok=True)
     save_path = "results/unsup_model.pt"
 
+    n_levels = cfg.model.n_levels
+    ks = cfg.model.k_per_level()
+
     print(f"\nTraining for {cfg.n_epochs} epochs")
-    print(f"Genus clusters (overcomplete): {cfg.model.k_genus}")
-    print(f"Differentia clusters (overcomplete): {cfg.model.k_diff}")
+    print(f"Levels: {n_levels}  k_per_level: {ks}")
     print(f"Prune threshold: {cfg.model.prune_threshold}, patience: {cfg.model.prune_patience}")
     print("No labels used during training.\n")
 
+    # Build header
+    level_cols = " ".join(f"{'L'+str(i):>4}" for i in range(n_levels))
     header = (
-        f"{'ep':>3} | {'total':>6} {'gc':>6} {'dc':>6} "
-        f"{'raise':>6} {'hier':>6} {'unif':>6} | "
-        f"{'r_rate':>6} {'g_pur':>6} {'d_pur':>6} | "
-        f"{'effG':>4} {'effD':>4} | "
-        f"{'chi_G':>6} {'chi_D':>6} {'gap':>6}"
+        f"{'ep':>3} | {'total':>6} {'contr':>6} {'raise':>6} "
+        f"{'hier':>6} {'unif':>6} | "
+        f"{'r_all':>5} | {level_cols} | {'dpth':>4}"
     )
     print(header)
     print("-" * len(header))
 
-    best_diff_purity = 0.0
-    # Track per-prototype witnessability history for pruning diagnostics
-    genus_witness_history: list[torch.Tensor] = []
-    diff_witness_history: list[torch.Tensor] = []
+    best_purity = 0.0
+    # Track per-level, per-prototype witnessability history
+    witness_history: list[list[torch.Tensor]] = [[] for _ in range(n_levels)]
 
     warmup_epochs = max(1, cfg.n_epochs // 5)
 
@@ -210,19 +224,9 @@ def train(cfg: TrainConfig) -> str:
         n_batches = 0
         t0 = time.time()
 
-        # Warmup: ramp contrast weights over first few epochs
+        # Warmup: ramp contrast weight over first few epochs
         warmup_factor = min(1.0, epoch / warmup_epochs)
-        loss_cfg = LossConfig(
-            w_genus=cfg.loss.w_genus * warmup_factor,
-            w_diff=cfg.loss.w_diff * warmup_factor,
-            w_raise=cfg.loss.w_raise,
-            w_hier=cfg.loss.w_hier,
-            w_unif=cfg.loss.w_unif,
-            contrast_margin=cfg.loss.contrast_margin,
-            contrast_threshold=cfg.loss.contrast_threshold,
-            max_triplets=cfg.loss.max_triplets,
-            raise_margin=cfg.loss.raise_margin,
-        )
+        loss_cfg = replace(cfg.loss, w_contrast=cfg.loss.w_contrast * warmup_factor)
 
         for images, _eval_labels in train_loader:
             images = images.to(device)
@@ -244,116 +248,124 @@ def train(cfg: TrainConfig) -> str:
             epoch_losses[k] /= max(n_batches, 1)
 
         metrics = evaluate(model, test_loader, device)
-        genus_witness_history.append(metrics["genus_witnessability"].cpu().clone())
-        diff_witness_history.append(metrics["diff_witnessability"].cpu().clone())
 
-        # Prune prototypes that can't produce CCD₃ witnesses
-        model.genus_proto.prune(
-            metrics["genus_witnessability"],
-            cfg.model.prune_threshold,
-            cfg.model.prune_patience,
-        )
-        model.diff_proto.prune(
-            metrics["diff_witnessability"],
-            cfg.model.prune_threshold,
-            cfg.model.prune_patience,
-        )
+        # Record witnessability history
+        for i in range(n_levels):
+            witness_history[i].append(
+                metrics["level_metrics"][i]["witnessability"].cpu().clone()
+            )
 
-        eff_g = model.genus_proto.effective_k
-        eff_d = model.diff_proto.effective_k
+        # Prune each level's prototypes based on CCD₃ witnessability
+        for i, lvl in enumerate(model.levels):
+            if lvl.is_alive:
+                lvl.proto.prune(
+                    metrics["level_metrics"][i]["witnessability"],
+                    cfg.model.prune_threshold,
+                    cfg.model.prune_patience,
+                )
+
+        # Log
+        eff_ks = [model.levels[i].effective_k for i in range(n_levels)]
+        eff_k_str = " ".join(f"{ek:4d}" for ek in eff_ks)
+        alive = metrics["alive_levels"]
+        depth = metrics["effective_depth"]
 
         print(
             f"{epoch:3d} | "
             f"{epoch_losses.get('total', 0):6.3f} "
-            f"{epoch_losses.get('genus_contrast', 0):6.3f} "
-            f"{epoch_losses.get('diff_contrast', 0):6.3f} "
+            f"{epoch_losses.get('contrast', 0):6.3f} "
             f"{epoch_losses.get('raise', 0):6.3f} "
             f"{epoch_losses.get('hierarchy', 0):6.3f} "
             f"{epoch_losses.get('uniform', 0):6.3f} | "
-            f"{metrics['raise_rate']:6.3f} "
-            f"{metrics['genus_purity']:6.3f} "
-            f"{metrics['diff_purity']:6.3f} | "
-            f"{eff_g:4d} "
-            f"{eff_d:4d} | "
-            f"{metrics['mean_chi_G']:6.2f} "
-            f"{metrics['mean_chi_D']:6.2f} "
-            f"{metrics['mean_gap']:6.2f}"
+            f"{metrics['raise_rates'].get('raise_all', 1.0):5.3f} | "
+            f"{eff_k_str} | "
+            f"{depth:4d}"
         )
 
-        if metrics["diff_purity"] > best_diff_purity:
-            best_diff_purity = metrics["diff_purity"]
-            torch.save({
-                "model_state_dict": model.state_dict(),
-                "model_config": cfg.model,
-                "loss_config": cfg.loss,
-                "epoch": epoch,
-                "metrics": metrics,
-            }, save_path)
+        # Save best model on finest-alive-level purity
+        if alive:
+            finest_purity = metrics["level_metrics"][alive[-1]]["purity"]
+            if finest_purity > best_purity:
+                best_purity = finest_purity
+                torch.save({
+                    "model_state_dict": model.state_dict(),
+                    "model_config": cfg.model,
+                    "loss_config": cfg.loss,
+                    "epoch": epoch,
+                    "metrics": {
+                        "raise_rates": metrics["raise_rates"],
+                        "effective_depth": depth,
+                        "alive_levels": alive,
+                        "level_purities": [
+                            metrics["level_metrics"][i]["purity"]
+                            for i in range(n_levels)
+                        ],
+                    },
+                }, save_path)
 
-    print(f"\nBest differentia purity: {best_diff_purity:.4f}")
+    print(f"\nBest finest-level purity: {best_purity:.4f}")
     print(f"Saved to {save_path}")
 
     # ── Pruning diagnostics (CCD₃ witnessability) ──
-    g_wit = torch.stack(genus_witness_history)  # (n_epochs, k_genus)
-    d_wit = torch.stack(diff_witness_history)   # (n_epochs, k_diff)
-    g_alive = model.genus_proto.alive.cpu()
-    d_alive = model.diff_proto.alive.cpu()
-
     print("\n── PRUNING DIAGNOSTICS (CCD₃ witnessability) ──")
     print(f"  Threshold: {cfg.model.prune_threshold}  Patience: {cfg.model.prune_patience}")
     print(f"  (Random baseline ≈ 0.33; well-separated clusters > 0.8)")
 
-    # Genus witnessability
-    final_g = g_wit[-1]
-    print(f"\n  Genus ({g_alive.sum()} alive / {len(g_alive)}):")
-    sorted_g, idx_g = final_g.sort(descending=True)
-    for i in range(len(sorted_g)):
-        pid = idx_g[i].item()
-        status = "alive" if g_alive[pid] else "DEAD"
-        peak = g_wit[:, pid].max().item()
-        final = sorted_g[i].item()
-        traj = [f"{g_wit[e, pid]:.2f}" for e in range(min(5, len(g_wit)))]
-        if len(g_wit) > 5:
-            traj.append("...")
-            traj.append(f"{final:.2f}")
-        print(f"    proto {pid:2d}: wit={final:.3f}  peak={peak:.3f}  "
-              f"[{status}]  [{' → '.join(traj)}]")
+    for i in range(n_levels):
+        lvl = model.levels[i]
+        alive_mask = lvl.proto.alive.cpu()
+        n_alive = alive_mask.sum().item()
+        n_total = len(alive_mask)
+        is_dead = not lvl.is_alive
 
-    # Differentia witnessability
-    pruned_d = (~d_alive).nonzero(as_tuple=True)[0]
-    surviving_d = d_alive.nonzero(as_tuple=True)[0]
-    print(f"\n  Differentia ({d_alive.sum()} alive / {len(d_alive)}):")
+        if is_dead:
+            print(f"\n  Level {i} — DEAD (0/{n_total} prototypes)")
+            continue
 
-    if len(surviving_d) > 0:
-        final_surv = d_wit[-1, surviving_d]
-        print(f"    Surviving — wit min: {final_surv.min():.3f}  "
-              f"max: {final_surv.max():.3f}  mean: {final_surv.mean():.3f}  "
-              f"std: {final_surv.std():.3f}")
+        wit = torch.stack(witness_history[i])  # (n_epochs, k)
+        final_wit = wit[-1]
 
-    if len(pruned_d) > 0:
-        pruned_peaks = d_wit[:, pruned_d].max(dim=0).values
-        final_pruned = d_wit[-1, pruned_d]
-        print(f"    Pruned ({len(pruned_d)}) — peak wit min: {pruned_peaks.min():.3f}  "
-              f"max: {pruned_peaks.max():.3f}  mean: {pruned_peaks.mean():.3f}")
-        # Classify: never-grounded vs lost-grounding
-        never_grounded = (pruned_peaks < cfg.model.prune_threshold).sum().item()
-        lost_grounding = len(pruned_d) - never_grounded
-        print(f"    Never grounded (peak < {cfg.model.prune_threshold}): {never_grounded}")
-        print(f"    Lost grounding (had witnesses, then lost them): {lost_grounding}")
-        if lost_grounding > 0:
-            print("    → Genuine ontological compression: abstractions lost their ground")
+        surviving = alive_mask.nonzero(as_tuple=True)[0]
+        pruned = (~alive_mask).nonzero(as_tuple=True)[0]
 
-        # Show trajectories for most interesting pruned heads
-        show_n = min(5, len(pruned_d))
-        top_pruned = pruned_peaks.argsort(descending=True)[:show_n]
-        print(f"\n  Top {show_n} pruned prototypes by peak witnessability:")
-        for pi in top_pruned:
-            pid = pruned_d[pi].item()
-            traj = d_wit[:, pid].tolist()
-            traj_str = " → ".join(f"{w:.2f}" for w in traj)
-            print(f"    proto {pid:3d}: {traj_str}")
-    else:
-        print("  No prototypes pruned.")
+        print(f"\n  Level {i} ({n_alive} alive / {n_total}):")
+
+        # Surviving stats
+        if len(surviving) > 0:
+            final_surv = final_wit[surviving]
+            print(f"    Surviving — wit min: {final_surv.min():.3f}  "
+                  f"max: {final_surv.max():.3f}  mean: {final_surv.mean():.3f}  "
+                  f"std: {final_surv.std():.3f}")
+
+        # Pruned stats
+        if len(pruned) > 0:
+            pruned_peaks = wit[:, pruned].max(dim=0).values
+            print(f"    Pruned ({len(pruned)}) — peak wit min: {pruned_peaks.min():.3f}  "
+                  f"max: {pruned_peaks.max():.3f}  mean: {pruned_peaks.mean():.3f}")
+            # Classify: never-grounded vs lost-grounding
+            never_grounded = (pruned_peaks < cfg.model.prune_threshold).sum().item()
+            lost_grounding = len(pruned) - never_grounded
+            print(f"    Never grounded (peak < {cfg.model.prune_threshold}): {never_grounded}")
+            print(f"    Lost grounding (had witnesses, then lost them): {lost_grounding}")
+            if lost_grounding > 0:
+                print("    → Genuine ontological compression: abstractions lost their ground")
+
+            # Trajectories for most interesting pruned prototypes
+            show_n = min(3, len(pruned))
+            top_pruned = pruned_peaks.argsort(descending=True)[:show_n]
+            if show_n > 0:
+                print(f"    Top {show_n} pruned by peak witnessability:")
+                for pi in top_pruned:
+                    pid = pruned[pi].item()
+                    traj = wit[:, pid].tolist()
+                    # Show first 5, ..., last
+                    if len(traj) > 7:
+                        traj_parts = [f"{w:.2f}" for w in traj[:5]]
+                        traj_parts.append("...")
+                        traj_parts.append(f"{traj[-1]:.2f}")
+                    else:
+                        traj_parts = [f"{w:.2f}" for w in traj]
+                    print(f"      proto {pid:3d}: {' → '.join(traj_parts)}")
 
     return save_path
 
@@ -365,8 +377,9 @@ def main() -> None:
     parser.add_argument("--n-epochs", type=int, default=30)
     parser.add_argument("--batch-size", type=int, default=256)
     parser.add_argument("--lr", type=float, default=3e-4)
-    parser.add_argument("--k-genus", type=int, default=16)
-    parser.add_argument("--k-diff", type=int, default=100)
+    parser.add_argument("--n-levels", type=int, default=5)
+    parser.add_argument("--k-min", type=int, default=8)
+    parser.add_argument("--k-max", type=int, default=100)
     parser.add_argument("--device", type=str, default="")
     args = parser.parse_args()
 
@@ -375,7 +388,11 @@ def main() -> None:
         lr=args.lr,
         device=args.device,
         data=DataConfig(batch_size=args.batch_size),
-        model=ModelConfig(k_genus=args.k_genus, k_diff=args.k_diff),
+        model=ModelConfig(
+            n_levels=args.n_levels,
+            k_min=args.k_min,
+            k_max=args.k_max,
+        ),
     )
     train(cfg)
 
