@@ -12,4 +12,4 @@ require mathlib from git
 @[default_target]
 lean_lib «SignificanceUnified» where
   srcDir := "SignificanceUnified"
-  roots := #[`Basic, `Consequences]
+  roots := #[`Basic, `Consequences, `CategoryTheory, `test]
