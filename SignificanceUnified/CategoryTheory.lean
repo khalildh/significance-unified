@@ -462,3 +462,186 @@ noncomputable example :
   with_panel_widgets [GoalTypePanel]
   skip  -- ← cursor here: definition chain triangle
   sorry
+
+-- ══════════════════════════════════════════════════════
+-- 16. THE DEFINITION DIAMOND
+--
+--    Man has two valid essential definitions:
+--      defMan:    Man = Rational Animal    (genus χ = 1)
+--      defManAlt: Man = Rational Sentient  (genus χ = 2)
+--
+--    In the Koncept category, Animal and Sentient have the SAME
+--    extension ({man, human, dog}) so they are mutually ≤ —
+--    categorically isomorphic. But they have DIFFERENT χ values,
+--    so the depth raises differ:
+--      defMan    raises from 1 to 3 (gap of 2 on ℤ)
+--      defManAlt raises from 2 to 3 (gap of 1 on ℤ)
+--
+--    NON-TRIVIAL POINT: The concept category cannot distinguish
+--    Animal from Sentient — they have the same morphisms to and
+--    from everything. But the significance structure (depth raises)
+--    DOES distinguish them. This is why the formalization needs BOTH:
+--      • A category (Koncept) for syllogistic inference
+--      • A depth scale (ℤ) for significance / amplification
+--    Neither alone suffices. The category tells you WHAT follows
+--    from WHAT (Barbara, Celarent, etc.). The depth scale tells
+--    you HOW MUCH more significant one thing is than another
+--    (the Raise). Essential definition lives at the intersection:
+--    it is a categorical relationship (genus ≤ differentia as
+--    extension inclusion) that also carries a depth ordering
+--    (genus.χ < differentia.χ as significance).
+-- ══════════════════════════════════════════════════════
+
+-- Animal and Sentient are mutually ≤ (same extension: man, human, dog)
+private theorem animal_le_sentient :
+    konceptAnimal ≤ konceptSentient :=
+  fun a ha => by cases a <;> simp_all [konceptAnimal, konceptSentient]
+
+private theorem sentient_le_animal :
+    konceptSentient ≤ konceptAnimal :=
+  fun a ha => by cases a <;> simp_all [konceptAnimal, konceptSentient]
+
+/-- Morphism Animal ⟶ Sentient in the Koncept category. -/
+noncomputable def animalToSentient : konceptAnimal ⟶ konceptSentient :=
+  homOfLE animal_le_sentient
+
+/-- Morphism Sentient ⟶ Animal in the Koncept category. -/
+noncomputable def sentientToAnimal : konceptSentient ⟶ konceptAnimal :=
+  homOfLE sentient_le_animal
+
+/-- Animal and Sentient are categorically isomorphic: morphisms in both
+    directions, and both compositions are the identity (trivially, in a
+    thin category). -/
+theorem animal_sentient_iso :
+    animalToSentient ≫ sentientToAnimal = 𝟙 konceptAnimal ∧
+    sentientToAnimal ≫ animalToSentient = 𝟙 konceptSentient :=
+  ⟨rfl, rfl⟩
+
+/-- But Animal and Sentient are NOT equal — they have different χ.
+    Animal.χ man = 1, Sentient.χ man = 2. The category is blind to
+    this difference; the depth scale sees it. -/
+theorem animal_ne_sentient : konceptAnimal ≠ konceptSentient := by
+  intro h
+  have h1 := congrFun (congrArg Koncept.χ h) LivingThing.man
+  simp [konceptAnimal, konceptSentient] at h1
+
+/-- The two definitions give the SAME morphism Man ⟶ Rational
+    (thin category — all parallel morphisms are equal) ... -/
+theorem same_differentia_morphism :
+    allMenAreRational_mor = altDefMan_differentiaMor := rfl
+
+/-- ... but DIFFERENT depth raises for entity .man:
+    defMan raises from 1 to 3 (genus Animal, χ = 1),
+    defManAlt raises from 2 to 3 (genus Sentient, χ = 2).
+    The category says "same inference." The depth scale says
+    "different significance." -/
+theorem different_genus_depths :
+    defMan.genus.χ LivingThing.man ≠ defManAlt.genus.χ LivingThing.man := by
+  show (1 : ℤ) ≠ 2; omega
+
+/-- The depth raise for defMan: Animal(1) → Rational(3), gap = 2. -/
+theorem defMan_raise_gap :
+    defMan.differentia.χ LivingThing.man - defMan.genus.χ LivingThing.man = 2 := by
+  simp [defMan, konceptRational, konceptAnimal]
+
+/-- The depth raise for defManAlt: Sentient(2) → Rational(3), gap = 1. -/
+theorem defManAlt_raise_gap :
+    defManAlt.differentia.χ LivingThing.man - defManAlt.genus.χ LivingThing.man = 1 := by
+  simp [defManAlt, konceptRational, konceptSentient]
+
+/-- The full diamond: in the Koncept category, both definitions produce
+    a commutative square through the Animal ↔ Sentient isomorphism.
+    But the depth raises embedded in each definition are different.
+    This is the central tension the formalization resolves: syllogistic
+    (the category) and significance (the depth scale) are complementary
+    structures on the same concepts. -/
+theorem definition_diamond :
+    -- Categorical: both paths Man → Animal agree (thin category)
+    (allMenAreAnimals_mor = altDefMan_genusMor ≫ sentientToAnimal) ∧
+    -- Categorical: both paths Man → Rational agree (thin category)
+    (allMenAreRational_mor = altDefMan_differentiaMor) ∧
+    -- Depth: the raises are DIFFERENT (genus depths differ)
+    (defMan.genus.χ LivingThing.man ≠ defManAlt.genus.χ LivingThing.man) ∧
+    -- Depth: defMan has a BIGGER raise (2 > 1)
+    (defMan.differentia.χ LivingThing.man - defMan.genus.χ LivingThing.man >
+     defManAlt.differentia.χ LivingThing.man - defManAlt.genus.χ LivingThing.man) := by
+  refine ⟨rfl, rfl, ?_, ?_⟩
+  · simp [defMan, defManAlt, konceptAnimal, konceptSentient]
+  · simp [defMan, defManAlt, konceptRational, konceptAnimal, konceptSentient]
+
+-- ══════════════════════════════════════════════════════
+-- CommDiag widgets for the Definition Diamond
+-- ══════════════════════════════════════════════════════
+
+set_option linter.unusedTactic false in
+/-- ▶ THE DEFINITION DIAMOND (square):
+    Man → Animal via defMan and Man → Sentient → Animal via defManAlt.
+    Both paths land at Animal. The square commutes (thin category)
+    but the depth raises carried by each path differ.
+
+    Cursor on `skip` to see:
+      konceptMan ──allMenAreAnimals_mor──→ konceptAnimal
+          |                                      |
+    altDefMan_genusMor                    𝟙 konceptAnimal
+          |                                      |
+          v                                      v
+      konceptSentient ──sentientToAnimal──→ konceptAnimal -/
+noncomputable example :
+    allMenAreAnimals_mor ≫ (𝟙 konceptAnimal)
+    = altDefMan_genusMor ≫ sentientToAnimal := by
+  with_panel_widgets [GoalTypePanel]
+  skip  -- ← cursor here: THE DEFINITION DIAMOND
+  sorry
+
+set_option linter.unusedTactic false in
+/-- ▶ Same differentia, different genus (square):
+    Both definitions send Man → Rational. The genus arm differs
+    (Animal vs Sentient) but the differentia arm is identical.
+
+    Cursor on `skip` to see:
+      konceptMan ──allMenAreRational_mor──→ konceptRational
+          |                                        |
+    altDefMan_genusMor                      𝟙 konceptRational
+          |                                        |
+          v                                        v
+      konceptSentient ──────────f──────────→ konceptRational -/
+noncomputable example (f : konceptSentient ⟶ konceptRational) :
+    allMenAreRational_mor ≫ (𝟙 konceptRational)
+    = altDefMan_genusMor ≫ f := by
+  with_panel_widgets [GoalTypePanel]
+  skip  -- ← cursor here: same differentia, different genus
+  sorry
+
+set_option linter.unusedTactic false in
+/-- ▶ The full picture (square):
+    Man → Animal and Man → Rational are the two arms of defMan.
+    Man sits at the apex; Animal and Rational are the base.
+    The CCD₃ witness (dog) grounds the essentiality from outside.
+
+    Cursor on `skip` to see:
+      konceptMan ──allMenAreAnimals_mor──→ konceptAnimal
+          |                                       |
+    allMenAreRational_mor            animalToSentient
+          |                                       |
+          v                                       v
+      konceptRational ────────f────────→ konceptSentient -/
+noncomputable example (f : konceptRational ⟶ konceptSentient) :
+    allMenAreAnimals_mor ≫ animalToSentient
+    = allMenAreRational_mor ≫ f := by
+  with_panel_widgets [GoalTypePanel]
+  skip  -- ← cursor here: full definition picture
+  sorry
+
+set_option linter.unusedTactic false in
+/-- ▶ The depth chain (triangle in ℤ):
+    defMan: genus depth 1 → differentia depth 3 (raise of 2).
+    The raise is a morphism (1 : ℤ) ⟶ (3 : ℤ) in the depth category.
+    This is the SAME information as the essential definition, but
+    projected onto the depth scale. -/
+noncomputable example :
+    (show (1 : ℤ) ⟶ (2 : ℤ) from homOfLE (by omega)) ≫
+    (show (2 : ℤ) ⟶ (3 : ℤ) from homOfLE (by omega))
+    = (show (1 : ℤ) ⟶ (3 : ℤ) from homOfLE (by omega)) := by
+  with_panel_widgets [GoalTypePanel]
+  skip  -- ← cursor here: depth chain 1 → 2 → 3
+  sorry
