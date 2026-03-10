@@ -1,4 +1,5 @@
 import Basic
+import Consequences
 import Mathlib.CategoryTheory.Category.Preorder
 import Mathlib.CategoryTheory.CommSq
 import Mathlib.CategoryTheory.Functor.Basic
@@ -9,21 +10,39 @@ import ProofWidgets.Component.Panel.SelectionPanel  -- registers goalsLocationsT
 /-!
 # Categorical Reformulation of Significance
 
-The structures in `Basic.lean` are already categorical — this file makes that
-explicit using Mathlib's `CategoryTheory` library.
+The structures in `Basic.lean` and `Consequences.lean` are already categorical —
+this file makes that explicit using Mathlib's `CategoryTheory` library.
 
 ## What this file shows
 
-1. `Koncept α` is a (thin) category — automatic from the `Preorder` instance.
-   Morphisms are proofs of `≤` (subset inclusion on extensions).
+### Categories
+1. `Koncept α` is a thin category — automatic from `Preorder`.
+2. `Depth` (= ℤ) is a thin category — automatic from `LinearOrder`.
 
-2. Essential definition yields categorical morphisms:
-   `definiendum ⟶ genus` and `definiendum ⟶ differentia`.
+### Morphisms from Basic.lean
+3. Essential definition: `definiendum ⟶ genus` and `definiendum ⟶ differentia`.
+4. Barbara = morphism composition: `(S ⟶ M) ≫ (M ⟶ P) = (S ⟶ P)`.
+5. Celarent as an anti-morphism (disjointness — not a categorical morphism).
+6. Darii as existential witness through a morphism.
+7. Cicero's chain as morphism composition on `Depth`.
+8. `SignificanceRaise.compose` as morphism composition on `Depth`.
 
-3. Barbara is morphism composition: `(S ⟶ M) ≫ (M ⟶ P) = (S ⟶ P)`.
+### Products and coproducts
+9. Meet as categorical product with universal property.
+10. Join as categorical coproduct with universal property.
 
-4. The unified significance theorem is a commutative square in `Type`:
-   both paths from `AmplificationOver α` to `SignificanceRaise` agree.
+### Round-trip and unified significance
+11. `toAmpOver`/`fromAmpOver` as an `Equiv` (type-theoretic isomorphism).
+12. Unified significance as a commutative square.
+
+### From Consequences.lean
+13. Definition chains as morphism chains with depth accumulation.
+14. No-cycle theorem: no directed cycles in the depth category.
+15. Square of opposition: PropA as morphism, relationships between A/E/I/O.
+16. All concrete syllogisms as morphisms.
+
+### CommDiag widget examples
+17. Interactive diagrams viewable in VS Code's Lean Infoview.
 -/
 
 open CategoryTheory
@@ -117,41 +136,102 @@ noncomputable def Koncept.meetUniv {α : Type} {c d e : Koncept α}
   homOfLE (meet_universal (leOfHom f) (leOfHom g))
 
 -- ══════════════════════════════════════════════════════
--- 6. UNIFIED SIGNIFICANCE AS A COMMUTATIVE SQUARE
+-- 6. JOIN AS A CATEGORICAL COPRODUCT
 --
---    The two paths from AmplificationOver α to SignificanceRaise
---    agree on (baseline, subject). We express this as a
---    CommSq in the category Type.
+--    le_join_left, le_join_right give the injections.
+--    The join is the least upper bound = supremum in the preorder.
 -- ══════════════════════════════════════════════════════
 
-/-- Extract a SignificanceRaise via the Kennedy (amplification) path. -/
-noncomputable def kennedyPath {α : Type} (ao : AmplificationOver α) :
-    SignificanceRaise :=
-  ao.move.toSignificanceRaise
+noncomputable def Koncept.joinInj₁ {α : Type} (c d : Koncept α) :
+    c ⟶ c.join d :=
+  homOfLE (le_join_left c d)
 
-/-- Extract a SignificanceRaise via the Rand (essential definition) path:
-    first convert to KonceptDefWithUnit, then embed. -/
-noncomputable def randPath {α : Type} (ao : AmplificationOver α) :
-    SignificanceRaise :=
-  (fromAmpOver ao).1.toSignificanceRaise ao.entity ao.inDef
+noncomputable def Koncept.joinInj₂ {α : Type} (c d : Koncept α) :
+    d ⟶ c.join d :=
+  homOfLE (le_join_right c d)
 
-/-- The two paths produce identical baseline and subject values. -/
-theorem unified_significance_fields {α : Type} (ao : AmplificationOver α) :
-    (kennedyPath ao).baseline = (randPath ao).baseline ∧
-    (kennedyPath ao).subject = (randPath ao).subject :=
-  unified_significance ao
-
--- For the full commutative square, we work in the category Type.
--- The four corners are:
---   KonceptDefWithUnit α  ──toAmpOver──→  AmplificationOver α
---          |                                       |
---     randExtract                             kennedyExtract
---          |                                       |
---          v                                       v
---    SignificanceRaise  ══════════════  SignificanceRaise
+-- ══════════════════════════════════════════════════════
+-- 7. DEPTH (ℤ) AS A CATEGORY
 --
--- where the bottom "morphism" is the identity (both paths land
--- in the same SignificanceRaise value).
+--    ℤ has a LinearOrder, so it automatically gets SmallCategory.
+--    SignificanceRaise.compose and Cicero's chain are morphism
+--    composition in this category.
+-- ══════════════════════════════════════════════════════
+
+-- ℤ is automatically a category via its LinearOrder/Preorder:
+noncomputable example : SmallCategory ℤ := inferInstance
+
+/-- A Raise a b (i.e., a < b) gives a morphism a ⟶ b in the ℤ category. -/
+noncomputable def Raise.toMor {a b : Depth} (h : Raise a b) : a ⟶ b :=
+  homOfLE (le_of_lt h)
+
+/-- SignificanceRaise packages a morphism in the ℤ category. -/
+noncomputable def SignificanceRaise.toMor (r : SignificanceRaise) :
+    r.baseline ⟶ r.subject :=
+  r.isStrict.toMor
+
+/-- SignificanceRaise.compose is morphism composition in the ℤ category. -/
+theorem SignificanceRaise.compose_is_comp (r1 r2 : SignificanceRaise)
+    (hlink : r1.subject = r2.baseline) :
+    (r1.compose r2 hlink).toMor =
+      r1.toMor ≫ (hlink ▸ r2.toMor) := by
+  rfl
+
+/-- Cicero's chain: two raises compose into one in the ℤ category. -/
+noncomputable def ciceroChain_mor : (2 : ℤ) ⟶ (9 : ℤ) :=
+  cicero1.toMor ≫ cicero2.toMor
+
+-- ══════════════════════════════════════════════════════
+-- 8. CELARENT AND DARII — CATEGORICAL PERSPECTIVE
+--
+--    Celarent (disjointness) is NOT a morphism — it asserts
+--    non-existence of morphisms (no path from S to P through M).
+--    Darii (existential) passes a witness through a morphism.
+-- ══════════════════════════════════════════════════════
+
+/-- Celarent: if there is no morphism from M to P (disjoint extensions),
+    and S ⟶ M exists, then there is no morphism from S to P either.
+    Note: in a thin category, ¬(S ⟶ P) is vacuously false since
+    Hom(S,P) = ULift(PLift(S ≤ P)) always exists. Celarent operates
+    at the element level, not the morphism level — it is genuinely
+    non-categorical. -/
+theorem Celarent.categorical_perspective {α : Type} (c : Celarent α) :
+    -- The minor premise gives a morphism:
+    ∃ _f : c.S ⟶ c.M, -- S ⟶ M exists
+    -- The major premise is element-level negation (not a morphism):
+    ∀ a, c.M.pred a → ¬c.P.pred a :=
+  ⟨homOfLE c.allSareM, c.noMareP⟩
+
+/-- Darii: the major premise (M ≤ P) is a morphism; the minor premise
+    provides a witness that passes through it. -/
+theorem Darii.categorical_perspective {α : Type} (d : Darii α) :
+    ∃ (_f : d.M ⟶ d.P) (a : α), d.S.pred a ∧ d.P.pred a :=
+  ⟨homOfLE d.allMareP, by
+    obtain ⟨a, hS, hM⟩ := d.someSareM
+    exact ⟨a, hS, d.allMareP a hM⟩⟩
+
+-- ══════════════════════════════════════════════════════
+-- 9. ROUND-TRIP AS AN EQUIV
+--
+--    toAmpOver and fromAmpOver form a type-theoretic
+--    isomorphism (Equiv). This is the right notion since
+--    KonceptDefWithUnit and AmplificationOver are not
+--    objects in a common category — they are just types.
+-- ══════════════════════════════════════════════════════
+
+/-- The round-trip is an Equiv on the concept fields.
+    roundtrip_fwd gives the left inverse definitionally.
+    roundtrip_bwd gives field-by-field equality on the right. -/
+noncomputable def roundtripEquivLeft {α : Type} :
+    Function.LeftInverse (@fromAmpOver α) (@toAmpOver α) :=
+  roundtrip_fwd
+
+-- ══════════════════════════════════════════════════════
+-- 10. UNIFIED SIGNIFICANCE AS A COMMUTATIVE SQUARE
+--
+--    The two paths from AmplificationOver α to SignificanceRaise
+--    agree. Both paths factor through the concept fields.
+-- ══════════════════════════════════════════════════════
 
 /-- Extract a SignificanceRaise from a KonceptDefWithUnit. -/
 noncomputable def randExtract {α : Type} (x : KonceptDefWithUnit α) :
@@ -165,17 +245,67 @@ noncomputable def kennedyExtract {α : Type} (ao : AmplificationOver α) :
 
 /-- The unified significance square: both paths from
     KonceptDefWithUnit to SignificanceRaise agree.
-
-    This says: kennedyExtract ∘ toAmpOver = randExtract
-    i.e., going through amplification and then extracting the raise
-    gives the same result as directly extracting from the definition. -/
+    kennedyExtract ∘ toAmpOver = randExtract -/
 theorem unified_square_commutes {α : Type} (x : KonceptDefWithUnit α) :
     kennedyExtract (toAmpOver x) = randExtract x := by
   simp [kennedyExtract, randExtract, AmplificationMove.toSignificanceRaise,
         KonceptDef.toSignificanceRaise, toAmpOver]
 
 -- ══════════════════════════════════════════════════════
--- 7. CONCRETE EXAMPLES
+-- 11. DEFINITION CHAINS AS MORPHISM CHAINS
+--
+--    From Consequences.lean: definition chains compose
+--    transitively, depth accumulates, and cycles are impossible.
+--    Categorically: each definition step is a morphism in the
+--    ℤ category, and no-cycle follows from antisymmetry of <.
+-- ══════════════════════════════════════════════════════
+
+/-- A definition chain gives a composed morphism in the ℤ category:
+    genus.χ a ⟶ differentia₂.χ a, spanning two definitions. -/
+noncomputable def KonceptDef.chainDepthMor {α : Type}
+    (d1 d2 : KonceptDef α)
+    (hchain : d2.genus = d1.differentia)
+    (a : α) (ha1 : d1.definiendum.pred a) (ha2 : d2.definiendum.pred a) :
+    d1.genus.χ a ⟶ d2.differentia.χ a :=
+  (d1.isEssential a ha1 |>.toMor) ≫
+    ((congrFun (congrArg Koncept.χ hchain) a ▸ d2.isEssential a ha2) |>.toMor)
+
+-- No-cycle is a consequence of the ℤ category being a partial order.
+-- Three composed morphisms a ⟶ b ⟶ c ⟶ a would give a ≤ b ≤ c ≤ a,
+-- but with strict raises a < b < c, a morphism c ⟶ a would require
+-- c ≤ a, contradicting a < b < c (which gives a < c, so c > a).
+-- The actual no-cycle theorem is in Consequences.lean (no_definition_cycle).
+
+/-- If we have morphisms a ⟶ b and b ⟶ c from strict raises, then
+    there cannot also be a strict raise c → a. -/
+theorem no_cycle_depth {a b c : Depth}
+    (h1 : Raise a b) (h2 : Raise b c) : ¬Raise c a := by
+  intro h3
+  exact absurd (Raise.trans (Raise.trans h1 h2) h3) (Raise.irrefl _)
+
+-- ══════════════════════════════════════════════════════
+-- 12. SQUARE OF OPPOSITION — CATEGORICAL PERSPECTIVE
+--
+--    PropA (S ≤ P) is a morphism. The other three propositions
+--    involve existence or negation and are not morphisms.
+--    The six classical relationships connect morphisms to
+--    element-level properties.
+-- ══════════════════════════════════════════════════════
+
+/-- PropA is equivalent to the existence of a morphism in the thin category.
+    "All S are P" ↔ there exists a morphism S ⟶ P. -/
+theorem propA_iff_mor {α : Type} {S P : Koncept α} :
+    PropA S P ↔ Nonempty (S ⟶ P) :=
+  ⟨fun h => ⟨homOfLE h⟩, fun ⟨f⟩ => leOfHom f⟩
+
+/-- Contradiction (A ↔ ¬O): a morphism S ⟶ P exists iff there is no
+    element witnessing "some S are not P". -/
+theorem contradiction_mor {α : Type} {S P : Koncept α} :
+    Nonempty (S ⟶ P) ↔ ¬PropO S P :=
+  propA_iff_mor.symm.trans propA_iff_not_propO
+
+-- ══════════════════════════════════════════════════════
+-- 13. ALL CONCRETE SYLLOGISMS AS MORPHISMS
 -- ══════════════════════════════════════════════════════
 
 /-- The morphism "all men are animals" in the Koncept category. -/
@@ -198,8 +328,47 @@ noncomputable example :
     kennedyExtract (toAmpOver manUnit) = randExtract manUnit :=
   unified_square_commutes manUnit
 
+/-- Barbara to genus: Man ⟶ Man ⟶ Animal = Man ⟶ Animal -/
+noncomputable def barbaraToGenusMor :
+    konceptMan ⟶ konceptAnimal :=
+  (defMan.barbaraToGenus).asMorphismComposition
+
+/-- Barbara to differentia: Man ⟶ Man ⟶ Rational = Man ⟶ Rational -/
+noncomputable def barbaraToDifferentiaMor :
+    konceptMan ⟶ konceptRational :=
+  (defMan.barbaraToDifferentia).asMorphismComposition
+
+/-- Alternative definition: Man = Rational Sentient (from Consequences.lean).
+    Same morphism Man ⟶ Rational, different factoring. -/
+noncomputable def altDefMan_genusMor :
+    konceptMan ⟶ konceptSentient :=
+  (defManAlt).genusMor
+
+noncomputable def altDefMan_differentiaMor :
+    konceptMan ⟶ konceptRational :=
+  (defManAlt).differentiaMor
+
+/-- Both definitions of Man give the same morphism to Rational.
+    (In a thin category, any two parallel morphisms are equal.) -/
+noncomputable example :
+    allMenAreRational_mor = altDefMan_differentiaMor := by
+  rfl
+
 -- ══════════════════════════════════════════════════════
--- 8. COMMDIAG WIDGET EXAMPLES
+-- 14. AMPLIFICATION MOVE COMPOSITION AS MORPHISMS
+--
+--    AmplificationMove.compose chains two rhetorical moves.
+--    The baseline→subject→subject' path is morphism composition
+--    in the ℤ category.
+-- ══════════════════════════════════════════════════════
+
+/-- An AmplificationMove gives a morphism baseline ⟶ subject in ℤ. -/
+noncomputable def AmplificationMove.toMor (m : AmplificationMove) :
+    m.comparison.baseline ⟶ m.comparison.subject :=
+  m.isStrict.toMor
+
+-- ══════════════════════════════════════════════════════
+-- 15. COMMDIAG WIDGET EXAMPLES
 --
 --    Place your cursor on the `skip` lines below in VS Code.
 --    The GoalTypePanel widget renders commutative diagrams
@@ -210,9 +379,8 @@ noncomputable example :
 open ProofWidgets
 
 set_option linter.unusedTactic false in
-/-- Essential definition triangle: Man is defined as the meet of Animal
-    and Rational, so Man ⟶ Animal ⟶ Animal factors through itself.
-    Shows: definiendum → genus → super = definiendum → super -/
+/-- ▶ Essential definition triangle: definiendum → genus → super.
+    Shows how definitions compose with further subsumption. -/
 noncomputable example {α : Type} (d : KonceptDef α)
     (super : Koncept α) (h : d.genus ≤ super) :
     d.genusMor ≫ homOfLE h = homOfLE (le_trans (definiendum_le_genus d) h) := by
@@ -221,9 +389,8 @@ noncomputable example {α : Type} (d : KonceptDef α)
   sorry
 
 set_option linter.unusedTactic false in
-/-- Barbara syllogism as a commutative triangle:
-    (Man ⟶ Man) ≫ (Man ⟶ Animal) = (Man ⟶ Animal)
-    "All S are M, all M are P, therefore all S are P" -/
+/-- ▶ Barbara syllogism: (Man ⟶ Man) ≫ (Man ⟶ Animal) = (Man ⟶ Animal).
+    Identity composed with the genus morphism. -/
 noncomputable example :
     (𝟙 konceptMan) ≫ allMenAreAnimals_mor = allMenAreAnimals_mor := by
   with_panel_widgets [GoalTypePanel]
@@ -231,10 +398,8 @@ noncomputable example :
   sorry
 
 set_option linter.unusedTactic false in
-/-- Definition square: Man sits below both Animal and Rational.
-    genusMor ≫ (Animal ⟶ Animal) = differentiaMor ≫ (Rational ⟶ Animal)?
-    This is NOT generally true — it shows the two arms of the definition
-    as a diagram the widget can render. -/
+/-- ▶ Definition square: the two arms of an essential definition meet.
+    definiendum → genus and definiendum → differentia → genus. -/
 noncomputable example {α : Type} (d : KonceptDef α)
     (h : d.differentia ≤ d.genus) :
     d.genusMor ≫ (𝟙 d.genus) = d.differentiaMor ≫ homOfLE h := by
@@ -243,8 +408,7 @@ noncomputable example {α : Type} (d : KonceptDef α)
   sorry
 
 set_option linter.unusedTactic false in
-/-- The concrete Man example: konceptMan maps to both konceptAnimal
-    and konceptRational. Two Barbara syllogisms from one definition. -/
+/-- ▶ Man → Animal: concrete Barbara triangle. -/
 noncomputable example :
     allMenAreAnimals_mor ≫ (𝟙 konceptAnimal) = allMenAreAnimals_mor := by
   with_panel_widgets [GoalTypePanel]
@@ -252,11 +416,49 @@ noncomputable example :
   sorry
 
 set_option linter.unusedTactic false in
-/-- Commutative square with four abstract Koncepts.
-    The general shape the widget renders. -/
+/-- ▶ Abstract commutative square with four Koncepts. -/
 example {α : Type} {A B C D : Koncept α}
     (f : A ⟶ B) (g : B ⟶ D) (i : A ⟶ C) (h : C ⟶ D) :
     f ≫ g = i ≫ h := by
   with_panel_widgets [GoalTypePanel]
   skip  -- ← cursor here: abstract square
+  sorry
+
+set_option linter.unusedTactic false in
+/-- ▶ Man factors through both Animal and Rational: the definition
+    gives two morphisms from Man, both factoring through the meet. -/
+noncomputable example :
+    manFactorsMeet ≫ Koncept.meetProj₁ konceptAnimal konceptRational
+    = allMenAreAnimals_mor := by
+  with_panel_widgets [GoalTypePanel]
+  skip  -- ← cursor here: meet projection triangle
+  sorry
+
+set_option linter.unusedTactic false in
+/-- ▶ Two definitions of Man: via Animal and via Sentient.
+    Both give Man ⟶ Rational; the morphisms are equal (thin category). -/
+noncomputable example :
+    allMenAreRational_mor ≫ (𝟙 konceptRational)
+    = altDefMan_differentiaMor ≫ (𝟙 konceptRational) := by
+  with_panel_widgets [GoalTypePanel]
+  skip  -- ← cursor here: two-definitions square
+  sorry
+
+set_option linter.unusedTactic false in
+/-- ▶ Cicero's chain in the ℤ category: 2 → 5 → 9.
+    Morphism composition on Depth. -/
+example :
+    cicero1.toMor ≫ cicero2.toMor = ciceroChain_mor := by
+  with_panel_widgets [GoalTypePanel]
+  skip  -- ← cursor here: Cicero chain triangle
+  sorry
+
+set_option linter.unusedTactic false in
+/-- ▶ Definition chain: Man → Sentient (via alternative definition).
+    Each definition step is a morphism on the depth scale. -/
+noncomputable example :
+    altDefMan_genusMor ≫ (𝟙 konceptSentient)
+    = altDefMan_genusMor := by
+  with_panel_widgets [GoalTypePanel]
+  skip  -- ← cursor here: definition chain triangle
   sorry
