@@ -20,13 +20,13 @@ inductive E
 
 def animalMembers : List E := [.socrates, .hypatia, .rex, .luna, .tom, .tweety]
 def animalChi : E → Point 3
-  | .socrates => ![0, 0, 0]
-  | .hypatia => ![0, 0, 0]
-  | .rex => ![0, 0, 0]
-  | .luna => ![0, 0, 0]
-  | .tom => ![0, 0, 0]
-  | .tweety => ![0, 0, 0]
-  | .oak => ![0, 0, 0]
+  | .socrates => ![378, 152, 139]
+  | .hypatia => ![378, 76, 139]
+  | .rex => ![63, 152, 1251]
+  | .luna => ![126, 0, 695]
+  | .tom => ![0, 152, 834]
+  | .tweety => ![63, 152, 0]
+  | .oak => ![63, 152, 0]
 
 def kAnimal : KonceptN 3 E where
   pred := fun a => a ∈ animalMembers
@@ -34,13 +34,13 @@ def kAnimal : KonceptN 3 E where
 
 def rationalMembers : List E := [.socrates, .hypatia]
 def rationalChi : E → Point 3
-  | .socrates => ![8, 2, 0]
-  | .hypatia => ![8, 1, 0]
-  | .rex => ![2, 2, 2]
-  | .luna => ![3, 0, 1]
-  | .tom => ![0, 2, 1]
-  | .tweety => ![2, 2, 0]
-  | .oak => ![2, 2, 0]
+  | .socrates => ![798, 0, 107]
+  | .hypatia => ![798, 0, 107]
+  | .rex => ![133, 0, 963]
+  | .luna => ![266, 0, 535]
+  | .tom => ![0, 0, 642]
+  | .tweety => ![133, 0, 0]
+  | .oak => ![133, 0, 0]
 
 def kRational : KonceptN 3 E where
   pred := fun a => a ∈ rationalMembers
@@ -48,13 +48,13 @@ def kRational : KonceptN 3 E where
 
 def humanMembers : List E := [.socrates, .hypatia]
 def humanChi : E → Point 3
-  | .socrates => ![8, 2, 0]
-  | .hypatia => ![8, 1, 0]
-  | .rex => ![2, 2, 2]
-  | .luna => ![3, 0, 1]
-  | .tom => ![0, 2, 1]
-  | .tweety => ![2, 2, 0]
-  | .oak => ![2, 2, 0]
+  | .socrates => ![876, 24, 88]
+  | .hypatia => ![876, 12, 88]
+  | .rex => ![146, 24, 792]
+  | .luna => ![292, 0, 440]
+  | .tom => ![0, 24, 528]
+  | .tweety => ![146, 24, 0]
+  | .oak => ![146, 24, 0]
 
 def kHuman : KonceptN 3 E where
   pred := fun a => a ∈ humanMembers
@@ -62,13 +62,13 @@ def kHuman : KonceptN 3 E where
 
 def canidMembers : List E := [.rex, .luna]
 def canidChi : E → Point 3
-  | .socrates => ![3, 0, 1]
-  | .hypatia => ![3, 0, 1]
-  | .rex => ![1, 0, 12]
-  | .luna => ![1, 0, 6]
-  | .tom => ![0, 0, 7]
-  | .tweety => ![1, 0, 0]
-  | .oak => ![1, 0, 0]
+  | .socrates => ![228, 184, 156]
+  | .hypatia => ![228, 92, 156]
+  | .rex => ![38, 184, 1404]
+  | .luna => ![76, 0, 780]
+  | .tom => ![0, 184, 936]
+  | .tweety => ![38, 184, 0]
+  | .oak => ![38, 184, 0]
 
 def kCanid : KonceptN 3 E where
   pred := fun a => a ∈ canidMembers
@@ -76,13 +76,13 @@ def kCanid : KonceptN 3 E where
 
 def domesticMembers : List E := [.rex, .tom]
 def domesticChi : E → Point 3
-  | .socrates => ![0, 4, 1]
-  | .hypatia => ![0, 2, 1]
-  | .rex => ![0, 4, 14]
-  | .luna => ![0, 0, 7]
-  | .tom => ![0, 4, 9]
-  | .tweety => ![0, 4, 0]
-  | .oak => ![0, 4, 0]
+  | .socrates => ![270, 480, 75]
+  | .hypatia => ![270, 240, 75]
+  | .rex => ![45, 480, 675]
+  | .luna => ![90, 0, 375]
+  | .tom => ![0, 480, 450]
+  | .tweety => ![45, 480, 0]
+  | .oak => ![45, 480, 0]
 
 def kDomestic : KonceptN 3 E where
   pred := fun a => a ∈ domesticMembers
@@ -90,21 +90,33 @@ def kDomestic : KonceptN 3 E where
 
 def dogMembers : List E := [.rex]
 def dogChi : E → Point 3
-  | .socrates => ![2, 3, 2]
-  | .hypatia => ![2, 2, 2]
-  | .rex => ![1, 4, 22]
-  | .luna => ![1, 0, 12]
-  | .tom => ![0, 4, 14]
-  | .tweety => ![1, 4, 0]
-  | .oak => ![1, 4, 0]
+  | .socrates => ![252, 100, 173]
+  | .hypatia => ![252, 50, 173]
+  | .rex => ![42, 100, 1557]
+  | .luna => ![84, 0, 865]
+  | .tom => ![0, 100, 1038]
+  | .tweety => ![42, 100, 0]
+  | .oak => ![42, 100, 0]
 
 def kDog : KonceptN 3 E where
   pred := fun a => a ∈ dogMembers
   χ    := dogChi
 
-/-- CCD grounding for rational: socrates and hypatia cluster against rex. -/
-theorem rational_ccd_socrates_hypatia :
-    SimilarByContrastN (rationalChi .socrates) (rationalChi .hypatia) (rationalChi .rex) := by decide
+/-- CCD grounding for animal: socrates and hypatia cluster against oak. -/
+theorem animal_ccd_socrates_hypatia :
+    SimilarByContrastN (animalChi .socrates) (animalChi .hypatia) (animalChi .oak) := by decide
+
+/-- CCD grounding for animal: rex and luna cluster against oak. -/
+theorem animal_ccd_rex_luna :
+    SimilarByContrastN (animalChi .rex) (animalChi .luna) (animalChi .oak) := by decide
+
+/-- CCD grounding for animal: rex and tom cluster against oak. -/
+theorem animal_ccd_rex_tom :
+    SimilarByContrastN (animalChi .rex) (animalChi .tom) (animalChi .oak) := by decide
+
+/-- CCD grounding for animal: luna and tom cluster against oak. -/
+theorem animal_ccd_luna_tom :
+    SimilarByContrastN (animalChi .luna) (animalChi .tom) (animalChi .oak) := by decide
 
 /-- CCD grounding for human: socrates and hypatia cluster against rex. -/
 theorem human_ccd_socrates_hypatia :
@@ -118,40 +130,27 @@ theorem canid_ccd_rex_luna :
 theorem domestic_ccd_rex_tom :
     SimilarByContrastN (domesticChi .rex) (domesticChi .tom) (domesticChi .socrates) := by decide
 
-/-- Certified essential definition: human = rational animal. A term of `KonceptDefN` IS the certificate. -/
-def defHuman : KonceptDefN 3 E where
-  definiendum := kAnimal.meet kRational
-  genus       := kAnimal
-  differentia := kRational
-  isMeet      := rfl
-  isEssential := by
-    show ∀ a, (a ∈ animalMembers ∧ a ∈ rationalMembers) →
-      RaiseProd (animalChi a) (rationalChi a)
-    decide
-  ccd := {
-    k        := kAnimal.meet kRational
-    a        := .socrates
-    b        := .hypatia
-    contrast := .rex
-    ha       := by show E.socrates ∈ animalMembers ∧ E.socrates ∈ rationalMembers; decide
-    hb       := by show E.hypatia ∈ animalMembers ∧ E.hypatia ∈ rationalMembers; decide
-    hc       := by show ¬(E.rex ∈ animalMembers ∧ E.rex ∈ rationalMembers); decide
-    hab      := by decide
-    similar  := by
-      show SimilarByContrastN
-        (fun i => max (animalChi (E.socrates) i) (rationalChi (E.socrates) i))
-        (fun i => max (animalChi (E.hypatia) i) (rationalChi (E.hypatia) i))
-        (fun i => max (animalChi (E.rex) i) (rationalChi (E.rex) i))
-      decide }
-  ccd_concept  := rfl
-  ccd_contrast := by show ¬(E.rex ∈ rationalMembers); decide
+-- Definition 'human = rational animal' FAILED the audit; not certified.
+--   ✗ isEssential: unit socrates: genus χ (378, 152, 139) ⊀ (incomparable or reversed) differentia χ (798, 0, 107); uniform-functional collapse HOLDS (669 vs 905)
+--   ✗ isEssential: unit hypatia: genus χ (378, 76, 139) ⊀ (incomparable or reversed) differentia χ (798, 0, 107); uniform-functional collapse HOLDS (593 vs 905)
 
-/-- Downstream theorems come free once the term exists: e.g. two units. -/
-example : ∃ a b, (kAnimal.meet kRational).pred a ∧ (kAnimal.meet kRational).pred b ∧ a ≠ b :=
-  defHuman.has_two_units
+/-- The uniform depth functional: equal attention to every dimension. -/
+def uniform : DepthFunctional 3 :=
+  ⟨fun _ => 1, fun _ => Int.zero_lt_one⟩
+
+/-- Weaker certificate for 'human = rational animal': the product-order
+    raise fails (genus and differentia attentions are
+    incomparable), but under the uniform functional the
+    differentia is deeper on every unit. Direction is
+    imposed by the weighting, not discovered — exactly
+    what `functionals_disagree` warns. -/
+theorem human_functional_essential :
+    ∀ a, (a ∈ animalMembers ∧ a ∈ rationalMembers) →
+      Raise (uniform.eval (animalChi a)) (uniform.eval (rationalChi a)) := by
+  decide
 
 -- Definition 'dog = domestic canid' FAILED the audit; not certified.
---   ✗ isEssential: unit rex: genus χ (1, 0, 12) ⊀ (incomparable or reversed) differentia χ (0, 4, 14)
+--   ✗ isEssential: unit rex: genus χ (38, 184, 1404) ⊀ (incomparable or reversed) differentia χ (45, 480, 675); uniform-functional collapse fails (1626 vs 1200)
 --   ✗ has_two_units: definiendum has 1 unit(s); essential definitions need two (KonceptDefN.has_two_units)
 
 end AuditCert

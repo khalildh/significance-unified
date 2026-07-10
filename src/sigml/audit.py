@@ -160,15 +160,28 @@ def check_definition(onto: Ontology, d: Definition) -> list[Finding]:
 
     for a in dfn.members:
         ok = raise_prod(gen.chi[a], dif.chi[a])
+        # the uniform DepthFunctional collapse: direction imposed by equal
+        # weights, the spec's own mechanism (DepthFunctional.mono /
+        # functionals_disagree) for recovering 1-D direction
+        scalar_ok = sum(gen.chi[a]) < sum(dif.chi[a])
+        detail = (
+            f"unit {a}: genus χ {gen.chi[a]} "
+            f"{'<' if ok else '⊀ (incomparable or reversed)'} "
+            f"differentia χ {dif.chi[a]}"
+        )
+        if not ok:
+            detail += (
+                "; uniform-functional collapse "
+                f"{'HOLDS' if scalar_ok else 'fails'} "
+                f"({sum(gen.chi[a])} vs {sum(dif.chi[a])})"
+            )
         findings.append(
             Finding(
                 "isEssential",
                 label,
                 ok,
-                f"unit {a}: genus χ {gen.chi[a]} "
-                f"{'<' if ok else '⊀ (incomparable or reversed)'} "
-                f"differentia χ {dif.chi[a]}",
-                witness={"unit": a},
+                detail,
+                witness={"unit": a, "scalar_ok": scalar_ok},
             )
         )
 
@@ -388,6 +401,7 @@ def emit_lean_certificate(onto: Ontology, findings: list[Finding]) -> str:
             )
             lines.append("")
 
+    uniform_emitted = False
     for d in onto.definitions:
         label = f"{d.definiendum} = {d.differentia} {d.genus}"
         if label in bad_subjects:
@@ -396,6 +410,50 @@ def emit_lean_certificate(onto: Ontology, findings: list[Finding]) -> str:
                 if f.subject == label and not f.passed:
                     lines.append(f"--   ✗ {f.check}: {f.detail}")
             lines.append("")
+            # partial certificate: if ONLY the product-order essentiality
+            # failed while the uniform DepthFunctional collapse holds on
+            # every unit (and the rest of the definition is sound), certify
+            # the weaker, weighting-dependent claim — direction imposed by
+            # equal weights, per DepthFunctional.mono / functionals_disagree.
+            def_findings = [f for f in findings if f.subject == label]
+            only_essential_failed = all(
+                f.passed for f in def_findings if f.check != "isEssential"
+            )
+            scalar_all = [
+                f.witness.get("scalar_ok")
+                for f in def_findings
+                if f.check == "isEssential" and not f.passed
+            ]
+            if only_essential_failed and scalar_all and all(scalar_all):
+                gi, di_ = _ident(d.genus), _ident(d.differentia)
+                fi = _ident(d.definiendum)
+                if not uniform_emitted:
+                    lines.extend(
+                        [
+                            "/-- The uniform depth functional: equal attention "
+                            "to every dimension. -/",
+                            f"def uniform : DepthFunctional {onto.dim} :=",
+                            "  ⟨fun _ => 1, fun _ => Int.zero_lt_one⟩",
+                            "",
+                        ]
+                    )
+                    uniform_emitted = True
+                lines.extend(
+                    [
+                        f"/-- Weaker certificate for '{label}': the product-order",
+                        "    raise fails (genus and differentia attentions are",
+                        "    incomparable), but under the uniform functional the",
+                        "    differentia is deeper on every unit. Direction is",
+                        "    imposed by the weighting, not discovered — exactly",
+                        "    what `functionals_disagree` warns. -/",
+                        f"theorem {fi}_functional_essential :",
+                        f"    ∀ a, (a ∈ {gi}Members ∧ a ∈ {di_}Members) →",
+                        f"      Raise (uniform.eval ({gi}Chi a)) "
+                        f"(uniform.eval ({di_}Chi a)) := by",
+                        "  decide",
+                        "",
+                    ]
+                )
             continue
         gi, di_, fi = _ident(d.genus), _ident(d.differentia), _ident(d.definiendum)
         gK = f"k{gi[0].upper()}{gi[1:]}"

@@ -280,7 +280,7 @@ The thin-category observation in `CategoryTheory.lean` becomes contentful once f
 `χ : α → Point n` is an order embedding, and there is a modern ML literature on learning exactly these (Vendrov's order embeddings, Poincaré embeddings, box embeddings). The Lean development gives that literature something it lacks: a **machine-checked specification of what a learned taxonomy must satisfy**. The pipeline in `src/sigml/`:
 
 1. **Train** — `order_embedding_demo.py` learns Vendrov-style order embeddings for a toy taxonomy (numpy SGD).
-2. **Place** — each entity is placed on each concept's characteristic scale, quantized to ℤⁿ (matching the spec's decidable integer scales).
+2. **Place** — each entity is placed on each concept's characteristic scale, quantized to ℤⁿ (matching the spec's decidable integer scales), using the contrast-derived rule described below.
 3. **Audit** — `audit.py` mirrors the spec's definitions (`dist₁`, `SimilarByContrastN`, `RaiseProd`, CCD₃, essentiality, the two-unit rule, acyclicity) and reports violations. In the demo run the audit catches a deliberately bad definition (singleton definiendum, incomparable raise) *and* an unplanned pathology — the most general concept's learned characteristic degenerates to zero, so its units cannot be contrast-grounded.
 4. **Certify** — the passing subset is emitted as `SignificanceUnified/AuditCert.lean`, where certified definitions are literally *terms of* `KonceptDefN` with every proof closed by `decide`. `lake build` is the final judge: the Lean kernel, not the Python code, certifies that the learned structure satisfies the spec.
 
@@ -290,6 +290,23 @@ lake build                                            # kernel-check the certifi
 ```
 
 Audit violations are the interesting output: a CCD₃ failure means a learned class doesn't cluster against any outsider; an essentiality failure means a genus/differentia pair whose depths are incomparable; a two-unit failure means a class that should be an individual. This is the OntoClean-style use case — taxonomy auditing — with the audit criteria proved rather than postulated.
+
+### Contrast-derived characteristic scales
+
+`Basic.lean` says choosing which characteristic defines χ is "the hard epistemological problem — the formalization assumes it is solved externally." `ContrastScale.lean` stops assuming it, following Rand's Conceptual Common Denominator (with Tversky's diagnosticity and Gärdenfors's dimension salience as the modern analogues): **the scale on which a concept measures its units is the scale on which its units differ from their foil.** Given a shared placement of entities, a concept's diagnostic weighting is the member-vs-foil separation on each dimension (`diagWeightIn`), and its derived characteristic weights each entity's position by that diagnosticity (`contrastChiIn`). For a differentia, the theoretically correct foil is the *rest of its genus* — the foil for `rational` in defining Man is the other animals, not the oak (Aristotle: the differentia divides the genus).
+
+What becomes provable once the scale is constructed rather than assumed:
+
+- **"Everything" has no scale, not just no witness** (`universal_no_derived_similarity`) — a universal concept has an empty foil, so its derived characteristic is the zero scale and no similarity judgment can even be stated on it. This strengthens `no_universal_ccd`: Rand's claim that "existence" has no CCD, as a theorem.
+- **Ornamental differentiae have no scale** (`ornamental_differentia_no_scale`) — a differentia that excludes nothing from its genus measures nothing: the scale-level version of `genus_ne_differentia`.
+- **Meaningfulness** (`diagWeightIn_translate`, `contrastChiIn_dist_translate`) — diagnostic weights and derived-scale distances are invariant under translation of the underlying positions, extending `Gap.translate` from raw scales to the entire scale-construction procedure.
+- **Grounding without direction persists** (`beastie_derived_ccd`, `beastie_derived_no_direction`) — deriving the scale from contrast buys grounding, but the incomparable pair stays incomparable: direction remains extra structure even on the concept's own scale.
+
+The demo runs both placement rules and compares. Findings from the switch:
+
+- **The `animal` degeneracy was partly an artifact of the old rule** — under contrast-derived scales, animal's characteristic is non-degenerate and 4 of 15 unit pairs get grounded (against the lone outsider, the oak). The remaining failures are informative: with a single outsider and heterogeneous units, full CCD₃ is very demanding — as a concept approaches universality, its foil thins and grounding erodes, the finite shadow of `no_universal_ccd`.
+- **Omitted measurements can erase units** — `rational`'s derived scale zeroes the one dimension its two units differ on (it isn't diagnostic of rationality against the other animals), collapsing socrates and hypatia to the same point, so the concept fails CCD₃ *on its own scale*: a `depth_separates_units` violation produced by the scale-construction itself.
+- **Incommensurability is real and detected** — the strict product-order raise (`RaiseProd`) essentially never holds across two concepts' differently-sparse attention weightings; Rand's requirement that the CCD be a *common* denominator reappears as a commensuration obligation (the demo normalizes all weightings to equal total attention). Even commensurated, `human = rational animal` fails the product raise but **holds under the uniform depth functional on every unit** — so the certificate records the weaker, explicitly weighting-dependent claim (`human_functional_essential`), exactly the direction-is-imposed reading that `functionals_disagree` warns about. The deliberately bad `dog = domestic canid` fails even the functional collapse: the audit now grades definitions (strong product raise / weak functional raise / nothing) instead of passing them binarily.
 
 ## Concrete examples
 
@@ -338,6 +355,7 @@ SignificanceUnified/
 ├── Consequences.lean     # Derived theorems (sections 14–19)
 ├── CategoryTheory.lean   # Categorical reformulation (thin categories)
 ├── ConceptualSpace.lean  # Multi-dimensional generalization (ℤ → ℤⁿ)
+├── ContrastScale.lean    # Contrast-derived characteristic scales (the CCD, constructed)
 ├── FCA.lean              # Bridge to Mathlib formal concept analysis
 ├── Functors.lean         # Functors between concept categories
 └── AuditCert.lean        # Machine-generated certificate (see sigml pipeline)
