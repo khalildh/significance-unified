@@ -108,11 +108,80 @@ def train(epochs: int = 4000, lr: float = 0.05, margin: float = 1.0) -> dict[str
 # ── 2. quantized per-concept placements ─────────────────────────────
 
 
-def placements(emb: dict[str, np.ndarray]) -> Ontology:
+def placements_dot(emb: dict[str, np.ndarray]) -> Ontology:
+    """The naive rule from the first iteration: entity position weighted by
+    the concept's own vector. Kept for comparison; its known failure mode is
+    that very general concepts have near-zero vectors, so their scales
+    degenerate (the `animal` pathology)."""
     concepts = {}
     for cname, members in MEMBERSHIP.items():
         chi = {
             e: tuple(int(v) for v in np.round(emb[e] * emb[cname] * 4))
+            for e in ENTITIES
+        }
+        concepts[cname] = Concept(cname, list(members), chi)
+    return Ontology(ENTITIES, concepts, DEFINITIONS, DIM)
+
+
+def diagnostic_weights(
+    pos: dict[str, tuple[int, ...]], members: list[str], foil: list[str]
+) -> tuple[int, ...]:
+    """Integer diagnosticity of each dimension, matching `diagWeightIn` in
+    ContrastScale.lean exactly:
+
+        w_i = |#foil * sum_members pos_i  -  #members * sum_foil pos_i|
+
+    (the member-vs-foil separation along i, scaled to stay integral), then
+    reduced by the gcd across dimensions — the canonical primitive
+    representative of the weighting ray, so scales of different concepts are
+    comparable and certificate numbers stay small. The Lean theorems are
+    about the raw weights; only ratios between dimensions matter for the
+    audit, and gcd reduction preserves those."""
+    w = [
+        abs(
+            len(foil) * sum(pos[a][i] for a in members)
+            - len(members) * sum(pos[a][i] for a in foil)
+        )
+        for i in range(DIM)
+    ]
+    # Commensuration: rescale every concept's weighting to the same total
+    # attention (L1 = 240). Raw diagnostic weights of different concepts have
+    # arbitrary relative magnitude (they scale with #members * #foil), and
+    # essentiality compares values ACROSS two concepts' scales — Rand's
+    # requirement that the characteristic be a COMMON denominator, appearing
+    # as a normalization obligation. Ratios between dimensions (all the Lean
+    # degeneracy/invariance theorems speak of) are preserved up to rounding.
+    total = sum(w)
+    if total == 0:
+        return tuple(0 for _ in w)
+    return tuple(int(round(240 * x / total)) for x in w)
+
+
+def placements_contrast(emb: dict[str, np.ndarray]) -> Ontology:
+    """Contrast-derived placement (ContrastScale.lean): the scale on which a
+    concept measures its units is the scale on which its units differ from
+    their foil.
+
+    Foil choice: for a concept serving as the differentia of a definition,
+    the foil is the REST OF ITS GENUS (the differentia divides the genus —
+    the foil for `rational` is the other animals, not the oak); otherwise
+    the foil is everything outside the concept."""
+    pos = {e: tuple(int(v) for v in np.round(emb[e] * 4)) for e in ENTITIES}
+    diff_of = {d.differentia: d for d in DEFINITIONS}
+    concepts = {}
+    for cname, members in MEMBERSHIP.items():
+        if cname in diff_of:
+            d = diff_of[cname]
+            foil = [
+                e
+                for e in MEMBERSHIP[d.genus]
+                if e not in MEMBERSHIP[d.definiendum]
+            ]
+        else:
+            foil = [e for e in ENTITIES if e not in members]
+        w = diagnostic_weights(pos, list(members), foil)
+        chi = {
+            e: tuple(int(wi * pi) for wi, pi in zip(w, pos[e], strict=True))
             for e in ENTITIES
         }
         concepts[cname] = Concept(cname, list(members), chi)
@@ -126,14 +195,31 @@ def main() -> None:
     print("training order embedding on", len(ENTITIES), "entities /",
           len(MEMBERSHIP), "concepts ...")
     emb = train()
-    onto = placements(emb)
 
+    # baseline rule, for comparison
+    dot_findings = audit(placements_dot(emb))
+    dot_rep = report(dot_findings)
+    save_report(dot_findings, os.path.join(REPO, "results", "audit_report_dot.json"))
+
+    # contrast-derived rule (ContrastScale.lean)
+    onto = placements_contrast(emb)
     findings = audit(onto)
     rep = report(findings)
-    print(f"audit: {rep['passed']}/{rep['checks']} checks passed")
+
+    print(f"\naudit (dot rule, baseline):      "
+          f"{dot_rep['passed']}/{dot_rep['checks']} checks passed")
+    print(f"audit (contrast-derived scales): "
+          f"{rep['passed']}/{rep['checks']} checks passed\n")
     for f in findings:
         mark = "ok " if f.passed else "FAIL"
         print(f"  [{mark}] {f.check:14s} {f.subject}: {f.detail}")
+
+    # the prediction: the animal degeneracy was an artifact of the dot rule
+    animal_dot = [f for f in dot_findings if f.subject == "animal" and f.check == "ccd3"]
+    animal_con = [f for f in findings if f.subject == "animal" and f.check == "ccd3"]
+    print(f"\nprediction check — animal CCD₃ groundings: "
+          f"dot rule {sum(f.passed for f in animal_dot)}/{len(animal_dot)}, "
+          f"contrast-derived {sum(f.passed for f in animal_con)}/{len(animal_con)}")
 
     results = os.path.join(REPO, "results")
     os.makedirs(results, exist_ok=True)
