@@ -57,12 +57,25 @@ from audit import (  # noqa: E402
 )
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-CACHE = os.path.join(REPO, "data", "cl.obo")
-OBO_URL = "http://purl.obolibrary.org/obo/cl.obo"
 DIM = 6
 SEEDS = list(range(6))
 MAX_ENTITIES = 46
 MAX_DEFS = 10
+
+# Each config points the SAME pipeline at a different ontology. `prefix` is the
+# id namespace whose terms are the definienda/genera/units; differentia fillers
+# may be cross-namespace. `domain` labels the result.
+CONFIGS = {
+    "cl": {
+        "url": "http://purl.obolibrary.org/obo/cl.obo",
+        "prefix": "CL:", "cert": "AuditCertOBO", "domain": "Cell Ontology (biology)",
+    },
+    "envo": {
+        "url": "http://purl.obolibrary.org/obo/envo.obo",
+        "prefix": "ENVO:", "cert": "AuditCertENVO",
+        "domain": "Environment Ontology (non-biological: geography, climate, materials)",
+    },
+}
 
 
 # ── parse ───────────────────────────────────────────────────────────
@@ -109,7 +122,7 @@ class Onto:
         sys.setrecursionlimit(1_000_000)
 
 
-def parse_obo(path: str) -> Onto:
+def parse_obo(path: str, prefix: str) -> Onto:
     o = Onto()
     cur = None
     for line in open(path, encoding="utf-8"):
@@ -129,17 +142,17 @@ def parse_obo(path: str) -> Onto:
         elif line.startswith("relationship: "):
             cur["rel"].append(line[len("relationship: "):].split(" !")[0])
         elif line == "" and "id" in cur:
-            _commit(o, cur)
+            _commit(o, cur, prefix)
             cur = None
     if cur and "id" in cur:
-        _commit(o, cur)
+        _commit(o, cur, prefix)
     o.finalize()
     return o
 
 
-def _commit(o: Onto, cur: dict) -> None:
+def _commit(o: Onto, cur: dict, prefix: str) -> None:
     tid = cur["id"]
-    if not tid.startswith("CL:"):
+    if not tid.startswith(prefix):
         return
     o.name[tid] = cur.get("name", tid)
     o.is_a[tid] = cur["is_a"]
@@ -285,17 +298,20 @@ def grade_definition(entities, gmembers, dmembers, units, raw_pos, quant=8):
 # ── main ────────────────────────────────────────────────────────────
 
 
-def ensure_obo() -> str:
-    if not os.path.exists(CACHE):
-        os.makedirs(os.path.dirname(CACHE), exist_ok=True)
-        print("downloading Cell Ontology (cl.obo, ~17MB) ...")
-        urllib.request.urlretrieve(OBO_URL, CACHE)
-    return CACHE
+def ensure_obo(cfg: dict) -> str:
+    cache = os.path.join(REPO, "data", cfg["url"].rsplit("/", 1)[-1])
+    if not os.path.exists(cache):
+        os.makedirs(os.path.dirname(cache), exist_ok=True)
+        print(f"downloading {cfg['url']} ...")
+        urllib.request.urlretrieve(cfg["url"], cache)
+    return cache
 
 
-def main() -> None:
-    o = parse_obo(ensure_obo())
-    print(f"parsed {len(o.name)} CL terms; "
+def main(name: str = "cl") -> None:
+    cfg = CONFIGS[name]
+    print(f"=== {cfg['domain']} ===")
+    o = parse_obo(ensure_obo(cfg), cfg["prefix"])
+    print(f"parsed {len(o.name)} {cfg['prefix']} terms; "
           f"{sum(1 for t in o.genus if t in o.diff)} have genus + relational differentia")
 
     cands = select_defs(o)
@@ -350,9 +366,8 @@ def main() -> None:
         findings.append(Finding(
             "essentiality", o.name[t], maj != "fail",
             f"grade={maj} slack={slack} genus={o.name[G]} seeds={gs}"))
-    save_report(findings, os.path.join(REPO, "results", "obo_essentiality.json"))
 
-    # certificate: a real CL definition that reaches the functional grade at
+    # certificate: a real definition that reaches the functional grade at
     # seed 0 with a clean meet — emitted with concepts, CCD groundings, and the
     # weaker uniform-functional essentiality theorem (strict is unreachable).
     raw0 = train_positions(allnodes, edges, 0)
@@ -370,34 +385,38 @@ def main() -> None:
         meet_ok = by.get(("isMeet", _deflabel(o, t, G, R, F)))
         if functional_ok and meet_ok and meet_ok.passed:
             cert = emit_lean_certificate(
-                onto_c, find_c, namespace="AuditCertOBO",
-                source=f"Cell Ontology definition '{label}' (order embeddings)")
-            path = os.path.join(REPO, "SignificanceUnified", "AuditCertOBO.lean")
+                onto_c, find_c, namespace=cfg["cert"],
+                source=f"{cfg['domain']} definition '{label}' (order embeddings)")
+            path = os.path.join(REPO, "SignificanceUnified", cfg["cert"] + ".lean")
             with open(path, "w") as fh:
                 fh.write(cert)
-            print(f"\nwrote {path}: real CL definition, functional-grade "
+            print(f"\nwrote {path}: real {cfg['prefix']} definition, functional-grade "
                   "essentiality — run `lake build` to kernel-check")
             break
     else:
         print("\nno clean-meet functional definition at seed 0; no cert emitted")
 
+    save_report(findings, os.path.join(REPO, "results",
+                                       f"obo_essentiality_{name}.json"))
     n = len(chosen)
-    print(f"\nAcross {n} real Cell-Ontology definitions (majority grade over seeds):")
+    print(f"\nAcross {n} real {cfg['domain']} definitions (majority grade over seeds):")
     print(f"  strict RaiseProd essentiality : {tally['strict']}   "
-          "(≈0 expected: strict product-order raises across two commensurated")
-    print( "                                     weightings are near-impossible — "
-          "the `functionals_disagree` theorem)")
+          "(≈0 expected — the `functionals_disagree` theorem)")
     print(f"  functional grade (Σ-weighted) : {tally['functional']}   "
-          "← the operative bar: differentia is deeper under equal attention")
+          "← differentia deeper under equal attention")
     print(f"  neither                       : {tally['fail']}   "
-          "← genus outweighs differentia even under equal attention")
-    print("\nReading: strict essentiality is the wrong bar for learned definitions "
-          "(structurally near-unreachable, as the theory predicts). Under the "
-          "functional\nbar, real CL definitions split — for %d of %d the "
-          "differentia genuinely outweighs the genus; for %d it does not."
-          % (tally["functional"], n, tally["fail"]))
-    print("\nwrote results/obo_essentiality.json")
+          "← genus outweighs differentia")
+    return tally
 
 
 if __name__ == "__main__":
-    main()
+    which = sys.argv[1] if len(sys.argv) > 1 else "cl"
+    if which == "all":
+        results = {name: main(name) for name in CONFIGS}
+        print("\n=== cross-domain comparison (strict / functional / neither) ===")
+        for name, t in results.items():
+            n = t["strict"] + t["functional"] + t["fail"]
+            print(f"  {CONFIGS[name]['domain'][:44]:44s} "
+                  f"{t['strict']}/{t['functional']}/{t['fail']}  of {n}")
+    else:
+        main(which)

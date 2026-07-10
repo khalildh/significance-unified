@@ -424,9 +424,42 @@ which are disproportionately marker refinements — larger structural definition
 are untested. This is a first, deliberately humbling look at the essentiality
 layer on real data, not a verdict on OBO ontologies.
 
+### Is it biology-specific? A non-biological control
+
+To ask whether the "marker refinements, not depth-ordered essences" reading is
+about cells or about engineered ontologies in general, the same pipeline runs
+against the **Environment Ontology** (ENVO) — a genuinely non-biological domain
+(geography, climate, materials): *marine thermocline*, *desert area*, *mixed
+forest biome*, *water droplet*, *anaerobic bioreactor*.
+
+| Domain | strict / functional / neither |
+|---|:---:|
+| Cell Ontology (biology) | 0 / ~5 / ~5 |
+| Environment Ontology (non-biological) | 0 / ~5 / ~5 |
+
+**The pattern is domain-independent.** Two unrelated fields give the same shape:
+strict essentiality absent (the theorem), the functional grade split roughly in
+half, and many definitions sitting on seed-boundary coin-flips (the ±1 wobble is
+why the counts are written "~5"). This is the important — and deflationary —
+result: because biology and environmental science produce the *same*
+distribution, the audit is not measuring anything domain-specific about the
+definitions. It is measuring (a) the theorem-forced impossibility of strict
+raises under commensuration, and (b) a near-balanced, noisy functional bar. The
+current operationalization of essence reflects the *geometry of the contrast
+scale construction* more than the *semantics* of the definitions.
+
+That is the strongest evidence yet that the strict product-order `isEssential`
+is the wrong condition, and that the weighting-relative revision (an *existential*
+over positive functionals, per `functionals_disagree`) is needed before the
+audit can say anything a domain expert would recognize as essence. `cl.obo` and
+`envo.obo` differ in everything except this — which is exactly what makes their
+agreement informative.
+
 ```bash
-.venv/bin/python src/sigml/obo_slice.py   # grades real CL definitions; cl.obo auto-downloads
-lake build                                 # kernel-checks AuditCertOBO.lean
+.venv/bin/python src/sigml/obo_slice.py cl     # biology; cl.obo auto-downloads
+.venv/bin/python src/sigml/obo_slice.py envo   # non-biological; envo.obo auto-downloads
+.venv/bin/python src/sigml/obo_slice.py all    # both + cross-domain comparison
+lake build                                      # kernel-checks AuditCertOBO/ENVO.lean
 ```
 
 ## Concrete examples
@@ -483,7 +516,8 @@ SignificanceUnified/
 ├── AuditCert.lean        # Machine-generated certificate (toy demo)
 ├── AuditCertSynthetic.lean # Machine-generated: full KonceptDefCCD path fixture
 ├── AuditCertWordNet.lean # Machine-generated: WordNet Carnivora grounding core
-└── AuditCertOBO.lean     # Machine-generated: a real Cell-Ontology definition
+├── AuditCertOBO.lean     # Machine-generated: a real Cell-Ontology definition
+└── AuditCertENVO.lean    # Machine-generated: a real Environment-Ontology definition
 src/sigml/
 ├── audit.py                  # Spec mirror + Lean certificate emission
 ├── order_embedding_demo.py   # Train → place → audit → certify (toy)
