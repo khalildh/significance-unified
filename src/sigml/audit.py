@@ -61,6 +61,7 @@ class Concept:
     name: str
     members: list[str]
     chi: dict[str, Vec]  # placement of EVERY entity on this concept's scale
+    weights: Vec | None = None  # attention profile, when chi = weights ⊙ pos
 
 
 @dataclass
@@ -76,6 +77,7 @@ class Ontology:
     concepts: dict[str, Concept]
     definitions: list[Definition]
     dim: int
+    pos: dict[str, Vec] | None = None  # shared placement, when scales are derived
 
 
 @dataclass
@@ -341,12 +343,13 @@ def emit_lean_certificate(onto: Ontology, findings: list[Finding]) -> str:
     become KonceptDefN terms (inhabiting the verified spec's type is the
     certificate); per-pair CCD groundings become `decide` theorems.
     """
+    assert onto.pos is not None, "certificate emission needs the shared placement"
     ok = {(f.check, f.subject) for f in findings if f.passed}
     bad_subjects = {f.subject for f in findings if not f.passed}
 
     ents = [(_ctor(e), e) for e in onto.entities]
     lines = [
-        "import ConceptualSpace",
+        "import SharedCCD",
         "",
         "/-!",
         "# Machine-generated audit certificate — do not edit",
@@ -370,13 +373,22 @@ def emit_lean_certificate(onto: Ontology, findings: list[Finding]) -> str:
         "",
     ]
 
+    lines.append("/-- The shared entity placement: the CCD's quality dimensions. -/")
+    lines.append(f"def posE : E → Point {onto.dim}")
+    for ent in onto.entities:
+        lines.append(f"  | .{_ctor(ent)} => {_vec(onto.pos[ent])}")
+    lines.append("")
+
     for cname, concept in onto.concepts.items():
         ci = _ident(cname)
+        wname = f"w{ci[0].upper()}{ci[1:]}"
         lines.append(f"def {ci}Members : List E := "
                      f"[{', '.join('.' + _ctor(m) for m in concept.members)}]")
-        lines.append(f"def {ci}Chi : E → Point {onto.dim}")
-        for ent in onto.entities:
-            lines.append(f"  | .{_ctor(ent)} => {_vec(concept.chi[ent])}")
+        lines.append(f"/-- Attention profile of {cname} "
+                     f"(total {sum(concept.weights)}). -/")
+        lines.append(f"def {wname} : Fin {onto.dim} → ℕ := {_vec(concept.weights)}")
+        lines.append(f"def {ci}Chi : E → Point {onto.dim} := "
+                     f"weightedChi {wname} posE")
         lines.append("")
         lines.append(f"def k{ci[0].upper()}{ci[1:]} : KonceptN {onto.dim} E where")
         lines.append(f"  pred := fun a => a ∈ {ci}Members")
@@ -464,16 +476,28 @@ def emit_lean_certificate(onto: Ontology, findings: list[Finding]) -> str:
             if f.subject == label and f.check == "ccd_witness" and f.passed
         )
         a, b, c = _ctor(w["a"]), _ctor(w["b"]), _ctor(w["contrast"])
+        wg = f"w{gi[0].upper()}{gi[1:]}"
+        wd = f"w{di_[0].upper()}{di_[1:]}"
         name = f"def{fi[0].upper()}{fi[1:]}"
         lines.extend(
             [
-                f"/-- Certified essential definition: {label}. "
-                f"A term of `KonceptDefN` IS the certificate. -/",
-                f"def {name} : KonceptDefN {onto.dim} E where",
+                f"/-- Certified essential definition: {label}, on a SHARED",
+                "    conceptual common denominator: one placement, two",
+                "    commensurate attention profiles. A term of `KonceptDefCCD`",
+                "    IS the certificate — and its essentiality verdict is",
+                "    provably invariant under change of the common unit",
+                "    (`KonceptDefCCD.essential_rescale`). -/",
+                f"def {name} : KonceptDefCCD {onto.dim} E where",
                 f"  definiendum := {gK}.meet {dK}",
                 f"  genus       := {gK}",
                 f"  differentia := {dK}",
                 "  isMeet      := rfl",
+                "  pos         := posE",
+                f"  wG          := {wg}",
+                f"  wD          := {wd}",
+                "  commensurate := by decide",
+                "  genusScale  := rfl",
+                "  diffScale   := rfl",
                 "  isEssential := by",
                 f"    show ∀ a, (a ∈ {gi}Members ∧ a ∈ {di_}Members) →",
                 f"      RaiseProd ({gi}Chi a) ({di_}Chi a)",

@@ -154,7 +154,12 @@ def diagnostic_weights(
     total = sum(w)
     if total == 0:
         return tuple(0 for _ in w)
-    return tuple(int(round(240 * x / total)) for x in w)
+    scaled = [int(round(240 * x / total)) for x in w]
+    # exact commensuration: KonceptDefCCD's `commensurate` field demands the
+    # totals be EQUAL, not approximately equal — absorb rounding drift into
+    # the largest weight
+    scaled[scaled.index(max(scaled))] += 240 - sum(scaled)
+    return tuple(scaled)
 
 
 def placements_contrast(emb: dict[str, np.ndarray]) -> Ontology:
@@ -165,27 +170,53 @@ def placements_contrast(emb: dict[str, np.ndarray]) -> Ontology:
     Foil choice: for a concept serving as the differentia of a definition,
     the foil is the REST OF ITS GENUS (the differentia divides the genus —
     the foil for `rational` is the other animals, not the oak); otherwise
-    the foil is everything outside the concept."""
-    pos = {e: tuple(int(v) for v in np.round(emb[e] * 4)) for e in ENTITIES}
+    the foil is everything outside the concept.
+
+    Adaptive quantization: if two distinct members of any concept collapse
+    to the same point on its derived scale, the resolution is doubled and
+    the placements recomputed. This is the adjudication of the
+    measurement-omission question: Rand's "no two existents possess a
+    characteristic in the same measure or degree" is kept as spec
+    (SimilarByContrastN's a ≠ b conjunct, depth_separates_units), and a
+    collapse is treated as insufficient measurement resolution, not as a
+    license to weaken the requirement. If units still coincide at the
+    resolution cap, the concept genuinely fails — and the audit says so."""
     diff_of = {d.differentia: d for d in DEFINITIONS}
-    concepts = {}
-    for cname, members in MEMBERSHIP.items():
-        if cname in diff_of:
-            d = diff_of[cname]
-            foil = [
-                e
-                for e in MEMBERSHIP[d.genus]
-                if e not in MEMBERSHIP[d.definiendum]
-            ]
-        else:
-            foil = [e for e in ENTITIES if e not in members]
-        w = diagnostic_weights(pos, list(members), foil)
-        chi = {
-            e: tuple(int(wi * pi) for wi, pi in zip(w, pos[e], strict=True))
-            for e in ENTITIES
+    for quant in (4, 8, 16, 32, 64):
+        pos = {
+            e: tuple(int(v) for v in np.round(emb[e] * quant)) for e in ENTITIES
         }
-        concepts[cname] = Concept(cname, list(members), chi)
-    return Ontology(ENTITIES, concepts, DEFINITIONS, DIM)
+        concepts = {}
+        for cname, members in MEMBERSHIP.items():
+            if cname in diff_of:
+                d = diff_of[cname]
+                foil = [
+                    e
+                    for e in MEMBERSHIP[d.genus]
+                    if e not in MEMBERSHIP[d.definiendum]
+                ]
+            else:
+                foil = [e for e in ENTITIES if e not in members]
+            w = diagnostic_weights(pos, list(members), foil)
+            chi = {
+                e: tuple(int(wi * pi) for wi, pi in zip(w, pos[e], strict=True))
+                for e in ENTITIES
+            }
+            concepts[cname] = Concept(cname, list(members), chi, weights=w)
+        collapsed = [
+            (c.name, a, b)
+            for c in concepts.values()
+            for i, a in enumerate(c.members)
+            for b in c.members[i + 1 :]
+            if c.chi[a] == c.chi[b]
+        ]
+        if not collapsed:
+            break
+        print(f"  resolution 1/{quant}: units collapse on their own scale "
+              f"({', '.join(f'{n}:{a}={b}' for n, a, b in collapsed)}) — doubling")
+    print(f"  quantization: 1/{quant}"
+          + (f" (collapse persists at cap: {collapsed})" if collapsed else ""))
+    return Ontology(ENTITIES, concepts, DEFINITIONS, DIM, pos=pos)
 
 
 # ── 3 & 4. audit and certify ────────────────────────────────────────
