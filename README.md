@@ -361,6 +361,74 @@ pip install torch nltk                         # wordnet corpus auto-downloads
 lake build                                     # kernel-check AuditCertWordNet.lean
 ```
 
+## The essentiality question: real definitions from the Cell Ontology
+
+The WordNet slice could not test essentiality — WordNet has no differentiae.
+OBO Foundry ontologies are built on Aristotelian definitions: every defined
+term carries a logical definition `T = genus ∩ (R some F)`. The Cell Ontology
+(`cl.obo`) has ~1,700 such terms. `src/sigml/obo_slice.py` finally puts the
+essentiality layer — `KonceptDefN`/`KonceptDefCCD` — in front of real
+ontological definitions, and asks of each: does the differentia sit **strictly
+deeper** than the genus (strict `RaiseProd`, the spec's `isEssential`), only
+under equal attention (the weak uniform-**functional** grade), or **neither**?
+
+Across 10 real CL definitions (majority grade over 6 seeds, contrast-derived
+commensurated scales, order embeddings on the is-a graph):
+
+| Grade | Count | |
+|---|:---:|---|
+| strict `RaiseProd` essentiality | **0** | as the theory predicts — see below |
+| functional grade only | 5 | differentia outweighs genus under equal attention |
+| neither | 5 | genus outweighs differentia even under equal attention |
+
+Three honest readings, in order of importance:
+
+1. **The strict result is the theorem, not biology.** `functionals_disagree`
+   and `SharedCCD`'s rescaling lemmas already imply that a strict product-order
+   raise between two *commensurated* weightings is near-structurally impossible
+   (both weightings sum to the same total attention, so per-dimension dominance
+   forces equality). Finding 0/10 strict on real data is that theorem
+   reappearing — it is *not* evidence about the Cell Ontology, and reporting it
+   as such would be a mistake. Strict `RaiseProd` is the wrong bar for learned
+   definitions.
+
+2. **Under the operative (functional) bar, the signal is weak and split.**
+   Half the definitions reach the functional grade, half do not — but many sit
+   at 3/3 coin-flips across seeds, so the differentia does *not robustly*
+   outweigh the genus. The learned essentiality signal hovers at the decision
+   boundary.
+
+3. **Why: CL definitions are marker refinements, not depth-ordered essences.**
+   The definitions the slice surfaces are things like *CD38-positive IgG memory
+   B cell*, *Gr1-high classical monocyte*, *enucleated reticulocyte*. The
+   differentia is a molecular **marker** or a fine feature that adds
+   discrimination without being "deeper" than the genus in any measurement
+   sense. This is a genuine mismatch: the formalization encodes Aristotelian
+   essentialism (differentia strictly deeper than genus), while contemporary
+   bio-ontologies define terms **compositionally and additively**. The spec's
+   notion of essence does not fit how real ontologies are built.
+
+This points at a spec revision the earlier PRs already set up: `isEssential`
+should perhaps be the **weighting-relative** condition (there *exists* a
+positive functional under which the differentia is deeper for every unit),
+which is weaker, achievable, and more faithful to Rand's context-relative
+account of essence — exactly the reading `functionals_disagree` formalizes. The
+OBO data is evidence for that revision rather than for the strict product
+order. `AuditCertOBO.lean` records one real CL definition at the functional
+grade (entities are CL term IDs, quantized to ℤ⁶, proof by `decide`).
+
+Honest limits: 10 definitions from one ontology, 6-dimensional embeddings; the
+differentia-membership model (`R some F` → entities with an R-edge to F) is a
+modeling choice and a confound; selection favors tractably-small definitions,
+which are disproportionately marker refinements — larger structural definitions
+are untested. This is a first, deliberately humbling look at the essentiality
+layer on real data, not a verdict on OBO ontologies.
+
+```bash
+.venv/bin/python src/sigml/obo_slice.py   # grades real CL definitions; cl.obo auto-downloads
+lake build                                 # kernel-checks AuditCertOBO.lean
+```
+
 ## Concrete examples
 
 ### Dogs, wolves, and cats (gap comparison)
@@ -414,12 +482,14 @@ SignificanceUnified/
 ├── Functors.lean         # Functors between concept categories
 ├── AuditCert.lean        # Machine-generated certificate (toy demo)
 ├── AuditCertSynthetic.lean # Machine-generated: full KonceptDefCCD path fixture
-└── AuditCertWordNet.lean # Machine-generated: WordNet Carnivora grounding core
+├── AuditCertWordNet.lean # Machine-generated: WordNet Carnivora grounding core
+└── AuditCertOBO.lean     # Machine-generated: a real Cell-Ontology definition
 src/sigml/
 ├── audit.py                  # Spec mirror + Lean certificate emission
 ├── order_embedding_demo.py   # Train → place → audit → certify (toy)
 ├── synthetic_cert_test.py    # Exercises the strong (KonceptDefCCD) certificate path
-└── wordnet_slice.py          # Real-data slice: WordNet Carnivora grounding audit
+├── wordnet_slice.py          # Real-data slice: WordNet Carnivora grounding audit
+└── obo_slice.py              # Real-data slice: Cell-Ontology essentiality grades
 ```
 
 **Basic.lean** — the core formalization:
