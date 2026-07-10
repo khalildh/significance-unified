@@ -15,45 +15,24 @@ the formal spec.
 namespace AuditCertOBO
 
 inductive E
-  | cl0000589 | cl0000601 | cl0000803 | cl0000953 | cl0001079 | cl0001080 | cl0002019 | cl0002020 | cl0002051 | cl0002053 | cl0002057 | cl0002106 | cl0002107 | cl0002108 | cl0002120 | cl0002121 | cl0002123 | cl0002421 | cl0002470 | cl0002474 | cl0002513 | cl0002514 | cl0005008 | cl0011018 | cl1001005 | cl1001107 | cl1001108 | cl1001109 | cl1001123 | cl1001124
+  | cl0000008 | cl0000011 | cl0000016 | cl0000020 | cl0000022 | cl0000024 | cl0000953 | cl0002051 | cl0002053
   deriving DecidableEq, Fintype
 
 /-- The shared entity placement: the CCD's quality dimensions. -/
 def posE : E → Point 6
-  | .cl0000589 => ![0, 9, 11, 0, 17, 26]
-  | .cl0000601 => ![0, 9, 9, 10, 4, 24]
-  | .cl0000803 => ![0, 21, 12, 0, 10, 0]
-  | .cl0000953 => ![0, 21, 0, 20, 0, 0]
-  | .cl0001079 => ![6, 0, 12, 30, 9, 0]
-  | .cl0001080 => ![6, 8, 11, 31, 0, 0]
-  | .cl0002019 => ![10, 40, 0, 0, 14, 0]
-  | .cl0002020 => ![0, 40, 0, 0, 0, 8]
-  | .cl0002051 => ![0, 20, 0, 9, 0, 11]
-  | .cl0002053 => ![10, 0, 0, 0, 0, 25]
-  | .cl0002057 => ![21, 9, 0, 12, 0, 0]
-  | .cl0002106 => ![0, 0, 34, 0, 0, 11]
-  | .cl0002107 => ![3, 5, 35, 0, 9, 0]
-  | .cl0002108 => ![0, 3, 24, 12, 0, 0]
-  | .cl0002120 => ![0, 0, 9, 0, 30, 14]
-  | .cl0002121 => ![0, 0, 18, 0, 29, 3]
-  | .cl0002123 => ![0, 7, 0, 11, 15, 0]
-  | .cl0002421 => ![0, 31, 0, 0, 19, 11]
-  | .cl0002470 => ![21, 0, 0, 16, 11, 0]
-  | .cl0002474 => ![21, 0, 0, 31, 0, 0]
-  | .cl0002513 => ![0, 21, 10, 0, 0, 12]
-  | .cl0002514 => ![0, 32, 11, 0, 0, 9]
-  | .cl0005008 => ![0, 9, 0, 10, 0, 32]
-  | .cl0011018 => ![0, 0, 4, 29, 0, 27]
-  | .cl1001005 => ![30, 14, 0, 0, 11, 0]
-  | .cl1001107 => ![10, 0, 0, 0, 20, 12]
-  | .cl1001108 => ![11, 0, 0, 13, 9, 13]
-  | .cl1001109 => ![11, 0, 10, 11, 0, 12]
-  | .cl1001123 => ![30, 9, 0, 0, 0, 10]
-  | .cl1001124 => ![30, 0, 0, 0, 9, 13]
+  | .cl0000008 => ![12, 26, 0, 0, 0, 11]
+  | .cl0000011 => ![0, 17, 0, 6, 0, 30]
+  | .cl0000016 => ![0, 9, 9, 0, 24, 11]
+  | .cl0000020 => ![0, 0, 0, 14, 26, 10]
+  | .cl0000022 => ![10, 16, 0, 0, 23, 11]
+  | .cl0000024 => ![32, 0, 3, 16, 0, 0]
+  | .cl0000953 => ![0, 23, 16, 19, 0, 0]
+  | .cl0002051 => ![6, 22, 12, 12, 0, 0]
+  | .cl0002053 => ![0, 22, 16, 13, 0, 0]
 
 def preBIiCellMembers : List E := [.cl0000953, .cl0002051, .cl0002053]
 /-- Attention profile of pre-B-II cell (total 240). -/
-def wPreBIiCell : Fin 6 → ℕ := ![37, 31, 65, 14, 66, 27]
+def wPreBIiCell : Fin 6 → ℕ := ![26, 41, 48, 33, 46, 46]
 def preBIiCellChi : E → Point 6 := weightedChi wPreBIiCell posE
 
 def kPreBIiCell : KonceptN 6 E where
@@ -62,7 +41,7 @@ def kPreBIiCell : KonceptN 6 E where
 
 def diffLargePreBIiCellMembers : List E := [.cl0000953, .cl0002051]
 /-- Attention profile of diff::large pre-B-II cell (total 240). -/
-def wDiffLargePreBIiCell : Fin 6 → ℕ := ![42, 60, 40, 36, 41, 21]
+def wDiffLargePreBIiCell : Fin 6 → ℕ := ![21, 43, 45, 38, 46, 47]
 def diffLargePreBIiCellChi : E → Point 6 := weightedChi wDiffLargePreBIiCell posE
 
 def kDiffLargePreBIiCell : KonceptN 6 E where
@@ -71,35 +50,36 @@ def kDiffLargePreBIiCell : KonceptN 6 E where
 
 def largePreBIiCellMembers : List E := [.cl0000953, .cl0002051]
 /-- Attention profile of large pre-B-II cell (total 240). -/
-def wLargePreBIiCell : Fin 6 → ℕ := ![42, 60, 40, 36, 41, 21]
+def wLargePreBIiCell : Fin 6 → ℕ := ![21, 43, 45, 38, 46, 47]
 def largePreBIiCellChi : E → Point 6 := weightedChi wLargePreBIiCell posE
 
 def kLargePreBIiCell : KonceptN 6 E where
   pred := fun a => a ∈ largePreBIiCellMembers
   χ    := largePreBIiCellChi
 
-/-- CCD grounding for pre-B-II cell: CL:0000953 and CL:0002051 cluster against CL:0000589. -/
+/-- CCD grounding for pre-B-II cell: CL:0000953 and CL:0002051 cluster against CL:0000008. -/
 theorem preBIiCell_ccd_cl0000953_cl0002051 :
-    SimilarByContrastN (preBIiCellChi .cl0000953) (preBIiCellChi .cl0002051) (preBIiCellChi .cl0000589) := by decide
+    SimilarByContrastN (preBIiCellChi .cl0000953) (preBIiCellChi .cl0002051) (preBIiCellChi .cl0000008) := by decide
 
-/-- CCD grounding for pre-B-II cell: CL:0000953 and CL:0002053 cluster against CL:0000589. -/
+/-- CCD grounding for pre-B-II cell: CL:0000953 and CL:0002053 cluster against CL:0000008. -/
 theorem preBIiCell_ccd_cl0000953_cl0002053 :
-    SimilarByContrastN (preBIiCellChi .cl0000953) (preBIiCellChi .cl0002053) (preBIiCellChi .cl0000589) := by decide
+    SimilarByContrastN (preBIiCellChi .cl0000953) (preBIiCellChi .cl0002053) (preBIiCellChi .cl0000008) := by decide
 
-/-- CCD grounding for pre-B-II cell: CL:0002051 and CL:0002053 cluster against CL:0000589. -/
+/-- CCD grounding for pre-B-II cell: CL:0002051 and CL:0002053 cluster against CL:0000008. -/
 theorem preBIiCell_ccd_cl0002051_cl0002053 :
-    SimilarByContrastN (preBIiCellChi .cl0002051) (preBIiCellChi .cl0002053) (preBIiCellChi .cl0000589) := by decide
+    SimilarByContrastN (preBIiCellChi .cl0002051) (preBIiCellChi .cl0002053) (preBIiCellChi .cl0000008) := by decide
 
-/-- CCD grounding for diff::large pre-B-II cell: CL:0000953 and CL:0002051 cluster against CL:0000589. -/
+/-- CCD grounding for diff::large pre-B-II cell: CL:0000953 and CL:0002051 cluster against CL:0000008. -/
 theorem diffLargePreBIiCell_ccd_cl0000953_cl0002051 :
-    SimilarByContrastN (diffLargePreBIiCellChi .cl0000953) (diffLargePreBIiCellChi .cl0002051) (diffLargePreBIiCellChi .cl0000589) := by decide
+    SimilarByContrastN (diffLargePreBIiCellChi .cl0000953) (diffLargePreBIiCellChi .cl0002051) (diffLargePreBIiCellChi .cl0000008) := by decide
 
-/-- CCD grounding for large pre-B-II cell: CL:0000953 and CL:0002051 cluster against CL:0000589. -/
+/-- CCD grounding for large pre-B-II cell: CL:0000953 and CL:0002051 cluster against CL:0000008. -/
 theorem largePreBIiCell_ccd_cl0000953_cl0002051 :
-    SimilarByContrastN (largePreBIiCellChi .cl0000953) (largePreBIiCellChi .cl0002051) (largePreBIiCellChi .cl0000589) := by decide
+    SimilarByContrastN (largePreBIiCellChi .cl0000953) (largePreBIiCellChi .cl0002051) (largePreBIiCellChi .cl0000008) := by decide
 
 -- Definition 'large pre-B-II cell = diff::large pre-B-II cell pre-B-II cell' FAILED the audit; not certified.
---   ✗ isEssential: unit CL:0002051: genus χ (0, 620, 0, 126, 0, 297) ⊀ (incomparable or reversed) differentia χ (0, 1200, 0, 324, 0, 231); uniform-functional collapse HOLDS (1043 vs 1755)
+--   ✗ isEssential: unit CL:0000953: genus χ (0, 943, 768, 627, 0, 0) ⊀ (incomparable or reversed) differentia χ (0, 989, 720, 722, 0, 0); uniform-functional collapse HOLDS (2338 vs 2431)
+--   ✗ isEssential: unit CL:0002051: genus χ (156, 902, 576, 396, 0, 0) ⊀ (incomparable or reversed) differentia χ (126, 946, 540, 456, 0, 0); uniform-functional collapse HOLDS (2030 vs 2068)
 
 /-- The uniform depth functional: equal attention to every dimension. -/
 def uniform : DepthFunctional 6 :=
