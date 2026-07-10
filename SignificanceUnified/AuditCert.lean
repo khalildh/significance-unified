@@ -1,4 +1,4 @@
-import ConceptualSpace
+import SharedCCD
 
 /-!
 # Machine-generated audit certificate — do not edit
@@ -18,85 +18,65 @@ inductive E
   | socrates | hypatia | rex | luna | tom | tweety | oak
   deriving DecidableEq, Fintype
 
+/-- The shared entity placement: the CCD's quality dimensions. -/
+def posE : E → Point 3
+  | .socrates => ![11, 7, 2]
+  | .hypatia => ![11, 4, 2]
+  | .rex => ![3, 8, 19]
+  | .luna => ![4, 0, 10]
+  | .tom => ![0, 8, 12]
+  | .tweety => ![3, 8, 0]
+  | .oak => ![3, 8, 0]
+
 def animalMembers : List E := [.socrates, .hypatia, .rex, .luna, .tom, .tweety]
-def animalChi : E → Point 3
-  | .socrates => ![378, 152, 139]
-  | .hypatia => ![378, 76, 139]
-  | .rex => ![63, 152, 1251]
-  | .luna => ![126, 0, 695]
-  | .tom => ![0, 152, 834]
-  | .tweety => ![63, 152, 0]
-  | .oak => ![63, 152, 0]
+/-- Attention profile of animal (total 240). -/
+def wAnimal : Fin 3 → ℕ := ![47, 43, 150]
+def animalChi : E → Point 3 := weightedChi wAnimal posE
 
 def kAnimal : KonceptN 3 E where
   pred := fun a => a ∈ animalMembers
   χ    := animalChi
 
 def rationalMembers : List E := [.socrates, .hypatia]
-def rationalChi : E → Point 3
-  | .socrates => ![798, 0, 107]
-  | .hypatia => ![798, 0, 107]
-  | .rex => ![133, 0, 963]
-  | .luna => ![266, 0, 535]
-  | .tom => ![0, 0, 642]
-  | .tweety => ![133, 0, 0]
-  | .oak => ![133, 0, 0]
+/-- Attention profile of rational (total 240). -/
+def wRational : Fin 3 → ℕ := ![118, 7, 115]
+def rationalChi : E → Point 3 := weightedChi wRational posE
 
 def kRational : KonceptN 3 E where
   pred := fun a => a ∈ rationalMembers
   χ    := rationalChi
 
 def humanMembers : List E := [.socrates, .hypatia]
-def humanChi : E → Point 3
-  | .socrates => ![876, 24, 88]
-  | .hypatia => ![876, 12, 88]
-  | .rex => ![146, 24, 792]
-  | .luna => ![292, 0, 440]
-  | .tom => ![0, 24, 528]
-  | .tweety => ![146, 24, 0]
-  | .oak => ![146, 24, 0]
+/-- Attention profile of human (total 240). -/
+def wHuman : Fin 3 → ℕ := ![130, 14, 96]
+def humanChi : E → Point 3 := weightedChi wHuman posE
 
 def kHuman : KonceptN 3 E where
   pred := fun a => a ∈ humanMembers
   χ    := humanChi
 
 def canidMembers : List E := [.rex, .luna]
-def canidChi : E → Point 3
-  | .socrates => ![228, 184, 156]
-  | .hypatia => ![228, 92, 156]
-  | .rex => ![38, 184, 1404]
-  | .luna => ![76, 0, 780]
-  | .tom => ![0, 184, 936]
-  | .tweety => ![38, 184, 0]
-  | .oak => ![38, 184, 0]
+/-- Attention profile of canid (total 240). -/
+def wCanid : Fin 3 → ℕ := ![31, 44, 165]
+def canidChi : E → Point 3 := weightedChi wCanid posE
 
 def kCanid : KonceptN 3 E where
   pred := fun a => a ∈ canidMembers
   χ    := canidChi
 
 def domesticMembers : List E := [.rex, .tom]
-def domesticChi : E → Point 3
-  | .socrates => ![270, 480, 75]
-  | .hypatia => ![270, 240, 75]
-  | .rex => ![45, 480, 675]
-  | .luna => ![90, 0, 375]
-  | .tom => ![0, 480, 450]
-  | .tweety => ![45, 480, 0]
-  | .oak => ![45, 480, 0]
+/-- Attention profile of domestic (total 240). -/
+def wDomestic : Fin 3 → ℕ := ![38, 120, 82]
+def domesticChi : E → Point 3 := weightedChi wDomestic posE
 
 def kDomestic : KonceptN 3 E where
   pred := fun a => a ∈ domesticMembers
   χ    := domesticChi
 
 def dogMembers : List E := [.rex]
-def dogChi : E → Point 3
-  | .socrates => ![252, 100, 173]
-  | .hypatia => ![252, 50, 173]
-  | .rex => ![42, 100, 1557]
-  | .luna => ![84, 0, 865]
-  | .tom => ![0, 100, 1038]
-  | .tweety => ![42, 100, 0]
-  | .oak => ![42, 100, 0]
+/-- Attention profile of dog (total 240). -/
+def wDog : Fin 3 → ℕ := ![29, 27, 184]
+def dogChi : E → Point 3 := weightedChi wDog posE
 
 def kDog : KonceptN 3 E where
   pred := fun a => a ∈ dogMembers
@@ -118,21 +98,25 @@ theorem animal_ccd_rex_tom :
 theorem animal_ccd_luna_tom :
     SimilarByContrastN (animalChi .luna) (animalChi .tom) (animalChi .oak) := by decide
 
+/-- CCD grounding for rational: socrates and hypatia cluster against rex. -/
+theorem rational_ccd_socrates_hypatia :
+    SimilarByContrastN (rationalChi .socrates) (rationalChi .hypatia) (rationalChi .rex) := by decide
+
 /-- CCD grounding for human: socrates and hypatia cluster against rex. -/
 theorem human_ccd_socrates_hypatia :
     SimilarByContrastN (humanChi .socrates) (humanChi .hypatia) (humanChi .rex) := by decide
 
-/-- CCD grounding for canid: rex and luna cluster against socrates. -/
+/-- CCD grounding for canid: rex and luna cluster against tweety. -/
 theorem canid_ccd_rex_luna :
-    SimilarByContrastN (canidChi .rex) (canidChi .luna) (canidChi .socrates) := by decide
+    SimilarByContrastN (canidChi .rex) (canidChi .luna) (canidChi .tweety) := by decide
 
 /-- CCD grounding for domestic: rex and tom cluster against socrates. -/
 theorem domestic_ccd_rex_tom :
     SimilarByContrastN (domesticChi .rex) (domesticChi .tom) (domesticChi .socrates) := by decide
 
 -- Definition 'human = rational animal' FAILED the audit; not certified.
---   ✗ isEssential: unit socrates: genus χ (378, 152, 139) ⊀ (incomparable or reversed) differentia χ (798, 0, 107); uniform-functional collapse HOLDS (669 vs 905)
---   ✗ isEssential: unit hypatia: genus χ (378, 76, 139) ⊀ (incomparable or reversed) differentia χ (798, 0, 107); uniform-functional collapse HOLDS (593 vs 905)
+--   ✗ isEssential: unit socrates: genus χ (517, 301, 300) ⊀ (incomparable or reversed) differentia χ (1298, 49, 230); uniform-functional collapse HOLDS (1118 vs 1577)
+--   ✗ isEssential: unit hypatia: genus χ (517, 172, 300) ⊀ (incomparable or reversed) differentia χ (1298, 28, 230); uniform-functional collapse HOLDS (989 vs 1556)
 
 /-- The uniform depth functional: equal attention to every dimension. -/
 def uniform : DepthFunctional 3 :=
@@ -150,7 +134,7 @@ theorem human_functional_essential :
   decide
 
 -- Definition 'dog = domestic canid' FAILED the audit; not certified.
---   ✗ isEssential: unit rex: genus χ (38, 184, 1404) ⊀ (incomparable or reversed) differentia χ (45, 480, 675); uniform-functional collapse fails (1626 vs 1200)
+--   ✗ isEssential: unit rex: genus χ (93, 352, 3135) ⊀ (incomparable or reversed) differentia χ (114, 960, 1558); uniform-functional collapse fails (3580 vs 2632)
 --   ✗ has_two_units: definiendum has 1 unit(s); essential definitions need two (KonceptDefN.has_two_units)
 
 end AuditCert
