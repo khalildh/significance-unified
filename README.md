@@ -247,6 +247,50 @@ This is not obvious because the two definitions use different characteristic fun
 
 These 27 results were previously **separate doctrines** from different authors and different centuries — Aristotle's anti-circularity, Aristotle's "being is not a genus," Rand's "two or more concretes," the compositionality and termination of definitional hierarchies, the non-uniqueness of definitions, the structural difference between level and gap comparisons, the distinguished role of the contrast witness, the translation invariance of similarity, and the quantization of significance. The formalization shows they are all consequences of one thing: **essential definitions carry a strict depth comparison grounded in contrast on an integer scale**. That is the unification — not just Kennedy and Rand, but the downstream implications that were never connected before.
 
+## Multi-dimensional conceptual spaces
+
+`ConceptualSpace.lean` generalizes the depth scale from ℤ to `Point n := Fin n → ℤ` — an n-dimensional space of quality dimensions in the sense of Gärdenfors, with L1 distance. The point of the generalization is a question asked of every theorem in the 1-D theory: **does it survive, or was it an artifact of dimension one?**
+
+**Survives in every dimension** (structural results): translation invariance, the S₂ symmetry of contrast, irreversibility of raises (`RaiseProd.irreversible`), acyclicity of definitions (`no_definition_cycleN`), the minimum quantum (`raiseProd_min_quantum`), genus ≠ differentia, and the two-unit minimum.
+
+**Dies above dimension one** (ℤ-artifacts): *direction from difference*. In 1-D, `a ≠ b` forces a `Raise` in some direction — that was linearity of ℤ, not conceptual structure. In dimension ≥ 2 the product order is partial, and `similar_without_raise_dim2` exhibits a fully valid contrast witness between two incomparable entities: `(0,1)` and `(1,0)` are similar as contrasted with `(5,5)`, yet neither is deeper. `witness_hasRaise_fails` replays this at the concept level. Contrast grounds *grouping*; it cannot ground *direction* once space has two dimensions — so the choice of genus vs differentia is pure extra structure, unrecoverable from contrast even in principle.
+
+**Recovered by choice of weights**: a `DepthFunctional` (positive weighting of the dimensions) collapses the space back to ℤ, and `DepthFunctional.mono` shows every raise in the space becomes a `Raise` on the collapsed scale — the original 1-D theory is the image of the multi-D theory under any such collapse. But `functionals_disagree` shows two weightings can *disagree about direction* on incomparable pairs: which of two concepts is "deeper" is imposed by a weighting, not discovered in the geometry.
+
+## Formal Concept Analysis
+
+`FCA.lean` connects `Koncept` to Mathlib's formal concept analysis (`Mathlib.Order.Concept`, after Ganter & Wille). Any family of Koncepts induces a formal context — entities as objects, concepts as attributes, membership as incidence — and then:
+
+- `extent_attributeConcept` — each Koncept's attribute concept has extent exactly the Koncept's extension: nothing is gained or lost entering the FCA lattice.
+- `attributeConcept_le_iff` — the Koncept preorder **is** the concept-lattice order, not merely analogous to it.
+- `extent_inf_attributeConcept` — `Koncept.meet` agrees with the lattice-theoretic `⊓`.
+- `objectConcept_le_attributeConcept_iff` — the fundamental incidence law: an object concept sits below an attribute concept iff the object has the attribute.
+
+What FCA adds: the concept lattice is *complete* — arbitrary meets and joins exist. What `Koncept` adds that FCA lacks: the characteristic scale χ. FCA sees only membership; significance is the structure FCA forgot.
+
+## Functors between concept categories
+
+The thin-category observation in `CategoryTheory.lean` becomes contentful once functors *between* concept categories enter. `Functors.lean` provides:
+
+- **Change of universe** — `Koncept.comapFunctor : Koncept β ⥤ Koncept α` pulls concepts back along any `f : α → β`, strictly functorially (`comap_id`, `comap_comp`): `Koncept` is a presheaf of preorders on the category of types. Pullback preserves meets (`comap_meet`), essentiality raises (`KonceptDef.raise_comap`), and — the epistemological payload — CCD witnesses (`CCDWitness₃.comap`): contrast-grounding is stable under re-description of the universe.
+- **Extension** — the forgetful functor `Koncept α ⥤ Set α` that FCA factors through. It preserves and reflects the order yet is not injective on objects: concepts carry strictly more structure than their extensions, and the surplus is exactly χ.
+
+## Learned embeddings: the audit pipeline
+
+`χ : α → Point n` is an order embedding, and there is a modern ML literature on learning exactly these (Vendrov's order embeddings, Poincaré embeddings, box embeddings). The Lean development gives that literature something it lacks: a **machine-checked specification of what a learned taxonomy must satisfy**. The pipeline in `src/sigml/`:
+
+1. **Train** — `order_embedding_demo.py` learns Vendrov-style order embeddings for a toy taxonomy (numpy SGD).
+2. **Place** — each entity is placed on each concept's characteristic scale, quantized to ℤⁿ (matching the spec's decidable integer scales).
+3. **Audit** — `audit.py` mirrors the spec's definitions (`dist₁`, `SimilarByContrastN`, `RaiseProd`, CCD₃, essentiality, the two-unit rule, acyclicity) and reports violations. In the demo run the audit catches a deliberately bad definition (singleton definiendum, incomparable raise) *and* an unplanned pathology — the most general concept's learned characteristic degenerates to zero, so its units cannot be contrast-grounded.
+4. **Certify** — the passing subset is emitted as `SignificanceUnified/AuditCert.lean`, where certified definitions are literally *terms of* `KonceptDefN` with every proof closed by `decide`. `lake build` is the final judge: the Lean kernel, not the Python code, certifies that the learned structure satisfies the spec.
+
+```bash
+.venv/bin/python src/sigml/order_embedding_demo.py   # train + audit + emit
+lake build                                            # kernel-check the certificate
+```
+
+Audit violations are the interesting output: a CCD₃ failure means a learned class doesn't cluster against any outsider; an essentiality failure means a genus/differentia pair whose depths are incomparable; a two-unit failure means a class that should be an individual. This is the OntoClean-style use case — taxonomy auditing — with the audit criteria proved rather than postulated.
+
 ## Concrete examples
 
 ### Dogs, wolves, and cats (gap comparison)
@@ -290,8 +334,16 @@ Level comparisons chain. This is Cicero's technique: build significance step by 
 
 ```
 SignificanceUnified/
-├── Basic.lean          # Core formalization (sections 1–13)
-└── Consequences.lean   # Derived theorems (sections 14–19)
+├── Basic.lean            # Core formalization (sections 1–13)
+├── Consequences.lean     # Derived theorems (sections 14–19)
+├── CategoryTheory.lean   # Categorical reformulation (thin categories)
+├── ConceptualSpace.lean  # Multi-dimensional generalization (ℤ → ℤⁿ)
+├── FCA.lean              # Bridge to Mathlib formal concept analysis
+├── Functors.lean         # Functors between concept categories
+└── AuditCert.lean        # Machine-generated certificate (see sigml pipeline)
+src/sigml/
+├── audit.py                  # Spec mirror + Lean certificate emission
+└── order_embedding_demo.py   # Train → place → audit → certify
 ```
 
 **Basic.lean** — the core formalization:
@@ -382,3 +434,5 @@ lake build
 - **CCDWitness₃ over CCD₃**: Carrying a specific witness is better for proof engineering than asserting global existence. You know exactly which entities ground the concept.
 - **`noncomputable` for Classical uses**: Meet/join use `Classical` (for `max` on arbitrary types). Concrete examples like `konceptMan` are defined computably so `native_decide` works in proofs.
 - **Separate `Koncept` spelling**: Avoids collision with Lean's `concept` keyword while being visually distinct.
+- **L1 distance and the product order in ℤⁿ**: Both keep the multi-dimensional theory decidable, so `decide` closes concrete goals — including every proof in the machine-generated `AuditCert.lean`. The product order (rather than a lexicographic or weighted order) is what makes incomparability representable, which is the philosophical point of the generalization.
+- **Certificates over trust**: The Python auditor is deliberately treated as untrusted. Its only job is to *find* witnesses; the emitted Lean file re-proves everything by `decide`, so the kernel is the arbiter.

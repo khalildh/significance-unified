@@ -5,3 +5,16 @@
 *.olean
 *.ilean
 *.trace
+
+# Python / ML
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+data/
+results/
+dist/
+
+# viz
+viz/node_modules/
+viz/dist/
