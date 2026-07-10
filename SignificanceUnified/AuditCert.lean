@@ -8,7 +8,7 @@ Entities were embedded, placements quantized to ℤ^3,
 and the structure audited against the spec in ConceptualSpace.lean.
 Only concepts and definitions that PASSED the audit appear here;
 every proof below is closed by `decide`, so acceptance of this file
-by the Lean kernel certifies that the learned structure satisfies
+by the Lean kernel certifies that the audited structure satisfies
 the formal spec.
 -/
 

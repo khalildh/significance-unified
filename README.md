@@ -318,6 +318,49 @@ The demo runs both placement rules and compares. Findings from the switch:
 
 **The measurement-omission question, adjudicated.** The `rational`-collapse finding forced a choice: when a derived scale erases the difference between a concept's units, is that a defect or is it Rand's "measurement omission" working as intended? Decision: the spec is right and stays — Rand's own doctrine is that units possess the CCD characteristic in *different* measure or degree (the `a ≠ b` conjunct of `SimilarByContrast`, `depth_separates_units`), and "no two existents are identical in measurement" makes a collapse an artifact of insufficient resolution, not a fact about the entities. The pipeline therefore treats collapse as a signal to *increase measurement resolution* (adaptive quantization: the demo detects the `rational` collapse at 1/4 and resolves it at 1/8, after which `rational` passes CCD₃); only a collapse persisting at the resolution cap counts against the concept.
 
+## First real-data slice: WordNet Carnivora
+
+`src/sigml/wordnet_slice.py` runs the audit against real lexical structure — a
+WordNet noun subtree rather than a toy or synthetic ontology. WordNet supplies
+only hypernymy (is-a), so this slice tests the **grounding layer** — CCD₃
+clustering, the subsumption preorder, acyclicity — and deliberately not
+essentiality (WordNet has no differentiae; that question stays open). The
+subtree is Carnivora, chosen because the repository's running example is
+dog/wolf/cat and this is the real version: Canidae, Felidae, Ursidae,
+Mustelidae, Procyonidae, ~37 species at genus granularity.
+
+Every CCD₃ verdict has two possible causes — a real gap in the taxonomy, or an
+artifact of how entities were embedded — so the slice runs **two independent
+position sources** and cross-tabulates: trained order embeddings (torch,
+8 seeds, reported as mean over seeds) and a deterministic structural control
+(per-synset graph features, no training). Agreement between them attributes a
+verdict to the taxonomy; divergence attributes it to the representation.
+
+Result (CCD₃ pairs grounded, within-family, against out-family outsiders):
+
+| Family | Trained (mean) | Structural control | Reading |
+|--------|:---:|:---:|---|
+| canine | 0.96 | 0.67 | trained-only — the embedding recovers coherence bare structure misses |
+| feline | 0.87 | 0.76 | partial under both (~81%) — structural |
+| bear | 0.86 | 0.90 | partial under both (~88%) — structural |
+| musteline | 0.79 | 0.87 | partial under both (~83%) — structural |
+| procyonid | 0.83 | 0.80 | partial under both (~82%) — structural |
+
+What the slice actually shows:
+
+1. **CCD₃ has teeth without being absurd.** ~80–96% of member pairs ground; the criterion is neither trivially satisfied nor obviously wrong on real data — the honest outcome you want from a first slice. It is a substantive constraint that real lexical concepts *mostly but not fully* meet.
+2. **The failures localize real heterogeneity.** The ungrounded residue concentrates in the "wastebasket" families — Mustelidae (weasels, badgers, otters, skunks) and Procyonidae (raccoons *and* pandas) — taxa that are morphologically diverse and cohere worse against outsiders. The audit flags exactly the families a taxonomist would call heterogeneous.
+3. **The cross-source safeguard worked.** On four of five families the two independent position sources agree within ~0.15, attributing grounding to the taxonomy rather than the embedding. The exception is Canidae, where the trained embedding grounds (0.96) far above the structural control (0.67): a case where learning recovers conceptual coherence that bare graph structure does not encode — bare hierarchy is symmetric under sibling exchange, so a purely structural embedding has weak within-family resolution.
+4. **A WordNet-sourced grounding certificate kernel-checks.** `AuditCertWordNet.lean` (the dog·wolf / lion·tiger core, quantized to ℤ⁵) inhabits the spec and closes its CCD₃ proofs by `decide`.
+
+Honest limits: grounding layer only (essentiality needs a corpus with differentiae — an OBO ontology is the natural next target); 5-dimensional embeddings on a single subtree of a few dozen species; `CAP=10` members per family, with dropped members logged, not silently truncated. This is a proof that the pipeline runs on real data and produces interpretable, taxonomy-attributable findings — not a WordNet-wide claim.
+
+```bash
+pip install torch nltk                         # wordnet corpus auto-downloads
+.venv/bin/python src/sigml/wordnet_slice.py   # audit + cross-tab + emit cert
+lake build                                     # kernel-check AuditCertWordNet.lean
+```
+
 ## Concrete examples
 
 ### Dogs, wolves, and cats (gap comparison)
@@ -369,12 +412,14 @@ SignificanceUnified/
 ├── SharedCCD.lean        # Rescaling invariance + commensurate essentiality (KonceptDefCCD)
 ├── FCA.lean              # Bridge to Mathlib formal concept analysis
 ├── Functors.lean         # Functors between concept categories
-├── AuditCert.lean        # Machine-generated certificate (see sigml pipeline)
-└── AuditCertSynthetic.lean # Machine-generated: full KonceptDefCCD path fixture
+├── AuditCert.lean        # Machine-generated certificate (toy demo)
+├── AuditCertSynthetic.lean # Machine-generated: full KonceptDefCCD path fixture
+└── AuditCertWordNet.lean # Machine-generated: WordNet Carnivora grounding core
 src/sigml/
 ├── audit.py                  # Spec mirror + Lean certificate emission
-├── order_embedding_demo.py   # Train → place → audit → certify
-└── synthetic_cert_test.py    # Exercises the strong (KonceptDefCCD) certificate path
+├── order_embedding_demo.py   # Train → place → audit → certify (toy)
+├── synthetic_cert_test.py    # Exercises the strong (KonceptDefCCD) certificate path
+└── wordnet_slice.py          # Real-data slice: WordNet Carnivora grounding audit
 ```
 
 **Basic.lean** — the core formalization:

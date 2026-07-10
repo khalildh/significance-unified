@@ -69,7 +69,9 @@ def main() -> None:
     if failed:
         raise SystemExit("synthetic fixture must pass every check")
 
-    cert = emit_lean_certificate(onto, findings)
+    cert = emit_lean_certificate(
+        onto, findings, namespace="AuditCertSynthetic",
+        source="a hand-crafted fixture exercising the KonceptDefCCD path")
     path = os.path.join(REPO, "SignificanceUnified", "AuditCertSynthetic.lean")
     with open(path, "w") as fh:
         fh.write(cert)
