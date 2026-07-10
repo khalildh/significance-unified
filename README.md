@@ -372,41 +372,47 @@ ontological definitions, and asks of each: does the differentia sit **strictly
 deeper** than the genus (strict `RaiseProd`, the spec's `isEssential`), only
 under equal attention (the weak uniform-**functional** grade), or **neither**?
 
-Across 10 real CL definitions (majority grade over 6 seeds, contrast-derived
-commensurated scales, order embeddings on the is-a graph):
+Graded at scale — **300 real CL definitions** over 1,365 entities, 6 seeds,
+contrast-derived commensurated scales, order embeddings on the is-a graph. The
+majority-vote tally is ~50/50 (≈1 strict, ~155 functional, ~145 neither), but
+the majority vote hides the real story, which only the **robustness histogram**
+shows — how many definitions reach the functional grade in exactly *k* of 6
+seeds (representative run; exact counts wobble a few across runs from CPU
+nondeterminism, the shape does not):
 
-| Grade | Count | |
-|---|:---:|---|
-| strict `RaiseProd` essentiality | **0** | as the theory predicts — see below |
-| functional grade only | 5 | differentia outweighs genus under equal attention |
-| neither | 5 | genus outweighs differentia even under equal attention |
+```
+functional in k/6 seeds:   0:~40   1:~39   2:~64   3:~64   4:~60   5:~22   6:~10
+robustly functional (6/6): ~10   robustly fail (0/6): ~40   boundary/noisy: ~250
+```
 
-Three honest readings, in order of importance:
+The histogram is **peaked in the middle, not bimodal at the ends**. Only ~3% of
+the 300 definitions robustly pass the functional bar and ~13% robustly fail;
+**~83% are seed-noise** that a majority vote arbitrarily rounds to "functional"
+or "fail." The apparent 50/50 split is an aggregate of coin flips, not a
+classification. Three honest readings:
 
 1. **The strict result is the theorem, not biology.** `functionals_disagree`
    and `SharedCCD`'s rescaling lemmas already imply that a strict product-order
    raise between two *commensurated* weightings is near-structurally impossible
    (both weightings sum to the same total attention, so per-dimension dominance
-   forces equality). Finding 0/10 strict on real data is that theorem
-   reappearing — it is *not* evidence about the Cell Ontology, and reporting it
-   as such would be a mistake. Strict `RaiseProd` is the wrong bar for learned
-   definitions.
+   forces equality). The near-zero strict count is that theorem reappearing —
+   not evidence about the Cell Ontology. Strict `RaiseProd` is the wrong bar.
 
-2. **Under the operative (functional) bar, the signal is weak and split.**
-   Half the definitions reach the functional grade, half do not — but many sit
-   at 3/3 coin-flips across seeds, so the differentia does *not robustly*
-   outweigh the genus. The learned essentiality signal hovers at the decision
-   boundary.
+2. **The functional bar does not stably classify definitions.** At n=10 the
+   signal looked like a 50/50 split; at n=300 it is revealed as ~83% noise with
+   a thin robust-fail tail slightly larger than the robust-pass tail. The
+   learned essentiality signal, as currently operationalized, is near-random for
+   the overwhelming majority of real definitions.
 
 3. **Why: CL definitions are marker refinements, not depth-ordered essences.**
-   The definitions the slice surfaces are things like *CD38-positive IgG memory
-   B cell*, *Gr1-high classical monocyte*, *enucleated reticulocyte*. The
-   differentia is a molecular **marker** or a fine feature that adds
-   discrimination without being "deeper" than the genus in any measurement
-   sense. This is a genuine mismatch: the formalization encodes Aristotelian
-   essentialism (differentia strictly deeper than genus), while contemporary
-   bio-ontologies define terms **compositionally and additively**. The spec's
-   notion of essence does not fit how real ontologies are built.
+   The definitions are things like *CD38-positive IgG memory B cell*,
+   *Gr1-high classical monocyte*, *enucleated reticulocyte*. The differentia is
+   a molecular **marker** or fine feature that adds discrimination without being
+   "deeper" than the genus in any measurement sense. This is a genuine mismatch:
+   the formalization encodes Aristotelian essentialism (differentia strictly
+   deeper than genus), while contemporary bio-ontologies define terms
+   **compositionally and additively**. The spec's notion of essence does not fit
+   how real ontologies are built.
 
 This points at a spec revision the earlier PRs already set up: `isEssential`
 should perhaps be the **weighting-relative** condition (there *exists* a
@@ -417,47 +423,50 @@ OBO data is evidence for that revision rather than for the strict product
 order. `AuditCertOBO.lean` records one real CL definition at the functional
 grade (entities are CL term IDs, quantized to ℤ⁶, proof by `decide`).
 
-Honest limits: 10 definitions from one ontology, 6-dimensional embeddings; the
-differentia-membership model (`R some F` → entities with an R-edge to F) is a
-modeling choice and a confound; selection favors tractably-small definitions,
-which are disproportionately marker refinements — larger structural definitions
-are untested. This is a first, deliberately humbling look at the essentiality
-layer on real data, not a verdict on OBO ontologies.
-
-### Is it biology-specific? A non-biological control
+### Is it biology-specific? A non-biological control, also at scale
 
 To ask whether the "marker refinements, not depth-ordered essences" reading is
 about cells or about engineered ontologies in general, the same pipeline runs
 against the **Environment Ontology** (ENVO) — a genuinely non-biological domain
 (geography, climate, materials): *marine thermocline*, *desert area*, *mixed
-forest biome*, *water droplet*, *anaerobic bioreactor*.
+forest biome*, *water droplet*, *anaerobic bioreactor*. ENVO has fewer logical
+definitions, so the slice is 71 of them over 798 entities.
 
-| Domain | strict / functional / neither |
-|---|:---:|
-| Cell Ontology (biology) | 0 / ~5 / ~5 |
-| Environment Ontology (non-biological) | 0 / ~5 / ~5 |
+| Domain | n | robustly functional (6/6) | robustly fail (0/6) | boundary / noisy |
+|---|:---:|:---:|:---:|:---:|
+| Cell Ontology (biology) | 300 | ~3% | ~13% | ~83% |
+| Environment Ontology (non-biological) | 71 | ~4% | ~20% | ~75% |
 
-**The pattern is domain-independent.** Two unrelated fields give the same shape:
-strict essentiality absent (the theorem), the functional grade split roughly in
-half, and many definitions sitting on seed-boundary coin-flips (the ±1 wobble is
-why the counts are written "~5"). This is the important — and deflationary —
-result: because biology and environmental science produce the *same*
-distribution, the audit is not measuring anything domain-specific about the
-definitions. It is measuring (a) the theorem-forced impossibility of strict
-raises under commensuration, and (b) a near-balanced, noisy functional bar. The
-current operationalization of essence reflects the *geometry of the contrast
-scale construction* more than the *semantics* of the definitions.
+**The pattern is domain-independent, and scale makes it unambiguous.** Both
+domains: strict essentiality effectively absent (the theorem); only 3–4% of
+definitions robustly reach the functional grade; a modest robust-fail tail
+slightly larger than the robust-pass tail; and a **72–83% majority that is pure
+seed-noise**. Because biology and environmental science — ontologies that share
+nothing but their construction methodology — produce the *same* distribution,
+the audit is not measuring anything domain-specific about the definitions. It is
+measuring (a) the theorem-forced impossibility of strict raises under
+commensuration, and (b) a near-random functional bar. The current
+operationalization of essence reflects the *geometry of the contrast-scale
+construction*, not the *semantics* of the definitions.
 
-That is the strongest evidence yet that the strict product-order `isEssential`
-is the wrong condition, and that the weighting-relative revision (an *existential*
-over positive functionals, per `functionals_disagree`) is needed before the
-audit can say anything a domain expert would recognize as essence. `cl.obo` and
-`envo.obo` differ in everything except this — which is exactly what makes their
-agreement informative.
+That is the strongest evidence across this whole line of work that the strict
+product-order `isEssential` is the wrong condition, and that the
+weighting-relative revision (an *existential* over positive functionals, per
+`functionals_disagree`) is needed before the audit can say anything a domain
+expert would recognize as essence. `cl.obo` and `envo.obo` differ in everything
+except this result — which is what makes their agreement informative.
+
+Honest limits: the differentia-membership model (`R some F` → entities with an
+R-edge to F) is a modeling choice and a confound; selection favors
+tractably-sized definitions (leaf counts under the caps), which skew toward
+marker refinements — the largest structural definitions are still untested; and
+6-dimensional embeddings are coarse. But n=300+71 across two unrelated domains
+is enough to retire the n=10 reading: the functional bar is near-random on real
+data, not a 50/50 classifier.
 
 ```bash
-.venv/bin/python src/sigml/obo_slice.py cl     # biology; cl.obo auto-downloads
-.venv/bin/python src/sigml/obo_slice.py envo   # non-biological; envo.obo auto-downloads
+.venv/bin/python src/sigml/obo_slice.py cl     # biology (300 defs); cl.obo auto-downloads
+.venv/bin/python src/sigml/obo_slice.py envo   # non-biological (71 defs); envo.obo auto-downloads
 .venv/bin/python src/sigml/obo_slice.py all    # both + cross-domain comparison
 lake build                                      # kernel-checks AuditCertOBO/ENVO.lean
 ```
