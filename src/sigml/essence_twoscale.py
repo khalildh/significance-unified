@@ -123,6 +123,20 @@ def run(name):
         defs.append((t, G, F))
         concepts |= {G, F}
 
+    def ancestors(x, seen=None):
+        seen = seen if seen is not None else set()
+        for p in o.is_a.get(x, []):
+            if p not in seen:
+                seen.add(p)
+                ancestors(p, seen)
+        return seen
+
+    def commensurable(G, F):
+        """Do genus and filler share an is-a ancestor in-namespace? If not, they
+        live in different branches (e.g. a cell type vs a nucleus shape) and
+        their depths are not comparable — the formalization's CCD precondition."""
+        return bool((ancestors(G) & ancestors(F)) - {G, F})
+
     depth_fns = {
         "sum":     lambda c: depth_sum(o, c, bearer, dm),
         "direct":  lambda c: depth_direct(o, c, bearer, dm),
@@ -155,6 +169,34 @@ def run(name):
         print(f"  {key:10s} {r:+18.2f} {wider/n:11.0%} {deeper/n:11.0%} "
               f"{inv/n:9.0%} {verdict:>10s}")
         out[key] = {"r": r, "inversion": inv / n, "base": base, "n": n}
+
+    # Commensurability diagnostic (direct depth): the aggregate inversion rate is
+    # dragged down by cross-branch definitions whose differentia filler is a
+    # part/quality (banded nucleus, cytoplasm type) incommensurable with the
+    # cell-type genus — the very comparison the CCD forbids. Split by it.
+    comm = {"same": [0, 0], "cross": [0, 0]}
+    fails = []
+    for t, G, F in defs:
+        wG, wF = width(o, G, wm), width(o, F, wm)
+        dG, dF = depth_direct(o, G, bearer, dm), depth_direct(o, F, bearer, dm)
+        if wG == wF or dG == dF:
+            continue
+        b = comm["same"] if commensurable(G, F) else comm["cross"]
+        b[1] += 1
+        b[0] += (wG > wF and dF > dG)
+        if wG > wF and dF <= dG and not commensurable(G, F) and len(fails) < 5:
+            fails.append((o.name[t], o.name[G], o.name.get(F, F)))
+    sN, cN = comm["same"][1] or 1, comm["cross"][1] or 1
+    print(f"  commensurability — inversion when filler shares the genus's branch: "
+          f"{comm['same'][0]}/{comm['same'][1]} = {comm['same'][0]/sN:.0%}")
+    print(f"                     inversion when filler is cross-branch "
+          f"(incommensurable): {comm['cross'][0]}/{comm['cross'][1]} = "
+          f"{comm['cross'][0]/cN:.0%}")
+    for t, G, F in fails:
+        print(f"    cross-branch 'failure' (valid definition): {t[:30]} "
+              f"= {G[:16]} ∩ (… {F[:22]})")
+    out["commensurable_inv"] = comm["same"][0] / sN
+    out["crossbranch_inv"] = comm["cross"][0] / cN
     return out
 
 

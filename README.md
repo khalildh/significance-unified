@@ -503,30 +503,53 @@ independent axis, `corr ≈ 0`. The measurement care is the point.)
 | Cell Ontology (biology) | 45 | −0.09 | 89% | 20% | 18% | 18% |
 | Environment Ontology (non-bio) | 346 | −0.07 | 78% | 36% | 29% | 28% |
 
-Three findings, and together they are the sharpest answer this project reached
-to "does the representation learn *concepts*?":
+What holds up, and what does not:
 
-1. **The Diamond is real.** With a properly normalized depth, the two axes are
-   uncorrelated (≈0) in both domains. Relational significance genuinely is an
-   independent dimension from taxonomic breadth — the formalization's
-   independence claim holds empirically.
+1. **The Diamond is real.** With a properly normalized depth the two axes are
+   uncorrelated (≈0) in both domains — relational significance genuinely is an
+   independent dimension from taxonomic breadth.
 2. **The subsumption half of essentiality holds.** Genera are reliably the wider
-   concept (78–89%). Concept-as-taxonomy is real and structurally present.
-3. **The essentialist depth-ordering does not.** The differentia is *not*
-   systematically deeper (20–36%, a minority), and the full inversion happens at
-   **exactly the chance rate** predicted if the two axes were independent coin
-   flips. Knowing the genus is wider tells you nothing about whether the
-   differentia is deeper. There is no essentialist structure linking the parts.
+   concept (78–89%). Concept-as-taxonomy is structurally present.
+3. **The depth-ordering appears absent — but this is a measurement failure, not
+   a fact about definitions.** The inversion sits at the chance rate, which
+   *looks* like "no essentialist structure." Then you open the failing cases and
+   the conclusion collapses.
 
-So the resolution of the concept-learning question is not "the representation
-fails to learn essence" — it is that **the essential depth-ordering is not there
-to be learned.** Real ontology definitions are a genus and a differentia laid on
-two independent axes, with the genus reliably wider and *no* systematic
-depth-ranking between genus and differentia. The formalization's *structure*
-(two independent scales) is vindicated; its central *normative* claim
-(`isEssential`: the differentia is strictly deeper) is not a property of real
-definitions. That is a fact about definitions, established on 45+346 of them
-across two unrelated domains — not a limitation of any embedding.
+**Why the "failures" do not refute essentiality (read the cases).** The
+definitions that fail the inversion are textbook Aristotelian ones:
+*band form neutrophil = neutrophil ∩ (has-part some **banded nucleus**)*,
+*basophilic erythroblast = erythroblast ∩ (has-part some **basophilic
+cytoplasm**)*, *desert area = barren land ∩ (has-quality some **arid**)*. The
+genus plus a genuine distinguishing characteristic — exactly what an essential
+definition is. They "fail" only because the depth measure scores the
+differentia *filler's own relational connectivity*, and a terminal quality
+(a banded nucleus, aridity) is relationally sparse **no matter how essential it
+is**. The measure asks "is the filler a connectivity hub?" when essentiality
+asks "is this the distinguishing feature?" — different questions. Worse, genus
+and filler usually live in different branches of the ontology (a cell type vs a
+nucleus shape; a landform vs a climate quality), so comparing their depths is
+comparing incommensurable scales — and the same-branch-vs-cross-branch inversion
+rate even *reverses* between the two domains (CL 33% vs 6%, ENVO 22% vs 36%),
+confirming the measure tracks filler idiosyncrasy, not essence.
+
+**The honest status: the depth-ordering is untested, not refuted.** Every proxy
+for the significance axis tried across this project has failed to *validly*
+measure it — contrast-χ was near-random, relational depth is biased against
+terminal-quality differentiae and compares across incommensurable branches. And
+the reason is precisely the precondition the formalization already insists on:
+genus and differentia must be measured on a **common scale** (the Conceptual
+Common Denominator; `KonceptDefCCD`'s `commensurate` field), because they live
+in different regions of concept space. This experiment does not refute
+`isEssential` — it empirically re-derives *why the CCD requirement is
+necessary*: without a shared scale, "the differentia is deeper" is not even a
+well-formed comparison. The formalization's structure and its commensurability
+demand are both vindicated; what remains open is finding a valid, commensurable
+depth measure — which no proxy here supplies.
+
+*(Correction: an earlier version of this section concluded the depth-ordering
+"is not a property of real definitions." That was aggregate-only reasoning;
+inspecting the failing cases showed they are valid definitions and the measure
+is at fault. The claim is retracted.)*
 
 ```bash
 .venv/bin/python src/sigml/essence_twoscale.py all   # both axes, both domains
