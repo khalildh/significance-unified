@@ -7,6 +7,27 @@ A Lean 4 formalization (with Mathlib) that models **significance as a preorder**
 
 Both traditions perform the same move: *asserting that one thing is strictly greater than another on a shared scale*. This formalization makes that shared structure explicit and machine-checkable.
 
+## Using it
+
+The Lean spec lives in `SignificanceUnified/` (`lake build` to check). The Python
+tool that audits learned taxonomy embeddings against that spec is packaged as
+`sigml`:
+
+```bash
+pip install -e .            # installs the `sigml` command (needs torch, nltk, numpy)
+
+sigml wordnet              # [validated]   CCD₃ grounding audit on a WordNet subtree
+sigml obo cl               # [provisional] essentiality grades on the Cell Ontology
+sigml twoscale all         # [diagnostic]  the two-scale Definition-Diamond probe
+sigml --help               # what each command does and how much to trust it
+```
+
+**Read [`FINDINGS.md`](FINDINGS.md) first** — it is the honest status map of every
+empirical claim (validated / provisional / open / retracted). The trustworthy,
+usable tool today is the **grounding auditor** (`sigml wordnet`); the essentiality
+work is an open research thread, not a settled result. Ontology files download to
+a gitignored `data/` cache on first run.
+
 ## The key insight: one scale, two comparisons
 
 Everything starts from a single integer scale — a **characteristic** `χ : α → ℤ` that assigns a "depth" to each entity. But concept-formation requires **two** kinds of comparison on that scale, not one:
