@@ -48,6 +48,28 @@ theorems, not claims. The machine-generated certificates (`AuditCert*.lean`) are
 kernel-checked: a learned/parsed structure inhabiting a spec type, proofs closed
 by `decide`.
 
+## Does the *representation* learn the hierarchy? — 🟡 (weak as used; fixable)
+
+`sigml repr`. Every audit consumes positions from an order embedding, and the
+embedding's faithfulness was never measured until now. It should have been:
+
+- **As the audits trained it** (direct is-a edges, ~6-D, ~1.2k steps): weak.
+  Held-out order-property ~0.33–0.45, reconstruction AUC ~0.68–0.74. More
+  dimensions and steps did **not** help — so it was not under-training.
+- **Trained the standard way** (on the transitive closure of is-a, as Vendrov
+  order embeddings require): faithful. AUC jumps to **0.97 (CL) / 0.86 (ENVO)**,
+  order-property to 0.85 (CL). So the representation *can* encode the taxonomy —
+  the audits' trainers were simply misconfigured (direct edges, not closure).
+
+**Consequence:** every empirical result in this repo was computed on a
+demonstrably weak representation (AUC ~0.7). The grounding results survived a
+cross-source control and are the more robust for it; the essentiality results,
+already provisional, ran on weak embeddings and are further undercut. The
+correct next step is to switch the audit trainers to transitive-closure training
+and re-run — until then, treat every number as "computed on a known-weak
+embedding." This is the ML-side analogue of the Python≡Lean gap: measured, not
+assumed, and it was not clean.
+
 ## Grounding audit (CCD₃ clustering) — ✅
 
 `sigml wordnet`. On a real WordNet Carnivora subtree, ~80–96% of within-family
