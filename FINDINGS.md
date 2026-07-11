@@ -9,6 +9,26 @@ honest map, so nobody has to reverse-engineer it from commit history.
 
 Legend: ✅ validated · 🟡 provisional · ⏳ open · ❌ retracted
 
+## Does the Python audit actually run off the Lean theory? — ✅ (primitives)
+
+`sigml validate` + `lake build`. The audit's core predicates in `audit.py`
+(`dist1`, `similar_by_contrast`, `raise_prod`) are a hand transcription of the
+Lean definitions (`dist₁`, `SimilarByContrastN`, `RaiseProd`). A differential
+check now confirms the transcription is faithful: 1,800 random cases (dims 2, 3,
+5, 6 — including the dims the WordNet and OBO audits actually use), spanning
+**both** verdicts, are emitted as Lean theorems asserting the *Python* verdict
+and closed by `decide`. `ValidateMirror.lean` kernel-checks, so Python and Lean
+agree on every case; a transcription bug (`<` vs `≤`, L1 vs L2, an off-by-one)
+would fail the build on the offending line.
+
+Scope of this guarantee: it validates the **primitives** the whole pipeline is
+built on. The higher-level audit *control flow* (the CCD₃ "for all pairs, exists
+an outsider" search; the essentiality grading; the contrast weighting) is
+ordinary Python composed over these now-verified primitives, and the emitted
+`AuditCert*.lean` files spot-check specific end-to-end results — but the search
+logic itself is not differentially checked. So: the foundation is verified; the
+orchestration on top is conventional code, not kernel-checked.
+
 ## Lean formalization — ✅
 
 Everything in `SignificanceUnified/` type-checks against Mathlib. The core
