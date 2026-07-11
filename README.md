@@ -471,6 +471,90 @@ data, not a 50/50 classifier.
 lake build                                      # kernel-checks AuditCertOBO/ENVO.lean
 ```
 
+## Two independent scales: the Definition Diamond, tested
+
+The earlier essentiality slices collapsed everything onto one contrast-derived
+χ, and that collapse was the error. The formalization's **Definition Diamond**
+(`preorder_not_partial_order`, "category vs depth scale independence") insists a
+concept lives on *two independent* axes:
+
+- **subsumption** — wider vs specific, from is-a. The genus is the wider concept.
+- **depth / significance** — abstraction vs concrete. Proved *independent* of
+  subsumption. It cannot come from is-a — which is exactly why an is-a-trained
+  embedding could never test essentiality; the depth axis has to come from the
+  **relations**.
+
+Aristotelian essentiality is a claim about the *interaction* of the two: for a
+definition `T = genus ∩ (R some F)`, the genus is wider on subsumption while the
+differentia is deeper on the significance axis — an **inversion** across the two
+scales. `src/sigml/essence_twoscale.py` measures both axes structurally (no
+seeds, no commensuration coin-flip) and tests it:
+
+- **width(c)** = |is-a descendants| — subsumption breadth.
+- **depth(c)** = relational triples `(R,F)` borne by the concept, per unit of
+  breadth (density) — how relationally determined it is, orthogonal to width.
+
+(An earlier depth measure — total triples over the whole subtree — turned out to
+be width in disguise, `corr ≈ 0.90`. Normalizing by breadth gives a genuinely
+independent axis, `corr ≈ 0`. The measurement care is the point.)
+
+| Domain | n | corr(width, depth) | genus wider | differentia deeper | inversion | chance |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|
+| Cell Ontology (biology) | 45 | −0.09 | 89% | 20% | 18% | 18% |
+| Environment Ontology (non-bio) | 346 | −0.07 | 78% | 36% | 29% | 28% |
+
+What holds up, and what does not:
+
+1. **The Diamond is real.** With a properly normalized depth the two axes are
+   uncorrelated (≈0) in both domains — relational significance genuinely is an
+   independent dimension from taxonomic breadth.
+2. **The subsumption half of essentiality holds.** Genera are reliably the wider
+   concept (78–89%). Concept-as-taxonomy is structurally present.
+3. **The depth-ordering appears absent — but this is a measurement failure, not
+   a fact about definitions.** The inversion sits at the chance rate, which
+   *looks* like "no essentialist structure." Then you open the failing cases and
+   the conclusion collapses.
+
+**Why the "failures" do not refute essentiality (read the cases).** The
+definitions that fail the inversion are textbook Aristotelian ones:
+*band form neutrophil = neutrophil ∩ (has-part some **banded nucleus**)*,
+*basophilic erythroblast = erythroblast ∩ (has-part some **basophilic
+cytoplasm**)*, *desert area = barren land ∩ (has-quality some **arid**)*. The
+genus plus a genuine distinguishing characteristic — exactly what an essential
+definition is. They "fail" only because the depth measure scores the
+differentia *filler's own relational connectivity*, and a terminal quality
+(a banded nucleus, aridity) is relationally sparse **no matter how essential it
+is**. The measure asks "is the filler a connectivity hub?" when essentiality
+asks "is this the distinguishing feature?" — different questions. Worse, genus
+and filler usually live in different branches of the ontology (a cell type vs a
+nucleus shape; a landform vs a climate quality), so comparing their depths is
+comparing incommensurable scales — and the same-branch-vs-cross-branch inversion
+rate even *reverses* between the two domains (CL 33% vs 6%, ENVO 22% vs 36%),
+confirming the measure tracks filler idiosyncrasy, not essence.
+
+**The honest status: the depth-ordering is untested, not refuted.** Every proxy
+for the significance axis tried across this project has failed to *validly*
+measure it — contrast-χ was near-random, relational depth is biased against
+terminal-quality differentiae and compares across incommensurable branches. And
+the reason is precisely the precondition the formalization already insists on:
+genus and differentia must be measured on a **common scale** (the Conceptual
+Common Denominator; `KonceptDefCCD`'s `commensurate` field), because they live
+in different regions of concept space. This experiment does not refute
+`isEssential` — it empirically re-derives *why the CCD requirement is
+necessary*: without a shared scale, "the differentia is deeper" is not even a
+well-formed comparison. The formalization's structure and its commensurability
+demand are both vindicated; what remains open is finding a valid, commensurable
+depth measure — which no proxy here supplies.
+
+*(Correction: an earlier version of this section concluded the depth-ordering
+"is not a property of real definitions." That was aggregate-only reasoning;
+inspecting the failing cases showed they are valid definitions and the measure
+is at fault. The claim is retracted.)*
+
+```bash
+.venv/bin/python src/sigml/essence_twoscale.py all   # both axes, both domains
+```
+
 ## Concrete examples
 
 ### Dogs, wolves, and cats (gap comparison)
@@ -532,7 +616,8 @@ src/sigml/
 ├── order_embedding_demo.py   # Train → place → audit → certify (toy)
 ├── synthetic_cert_test.py    # Exercises the strong (KonceptDefCCD) certificate path
 ├── wordnet_slice.py          # Real-data slice: WordNet Carnivora grounding audit
-└── obo_slice.py              # Real-data slice: Cell-Ontology essentiality grades
+├── obo_slice.py              # Real-data slice: OBO essentiality grades (CL, ENVO)
+└── essence_twoscale.py       # Two independent scales: the Definition Diamond, tested
 ```
 
 **Basic.lean** — the core formalization:
