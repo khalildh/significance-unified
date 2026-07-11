@@ -53,6 +53,11 @@ def main(argv=None) -> int:
     )
     pt.add_argument("ontology", nargs="?", default="all",
                     help="cl | envo | all (default: all)")
+    sub.add_parser(
+        "validate",
+        help="[foundation] regenerate the Python≡Lean differential check "
+             "(then `lake build`)",
+    )
 
     args = p.parse_args(argv)
     if not args.cmd:
@@ -73,6 +78,9 @@ def main(argv=None) -> int:
         import essence_twoscale
         sys.argv = ["essence_twoscale", args.ontology]
         essence_twoscale.main()
+    elif args.cmd == "validate":
+        import validate
+        validate.main()
     return 0
 
 
