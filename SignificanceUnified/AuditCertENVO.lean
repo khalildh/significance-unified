@@ -20,19 +20,19 @@ inductive E
 
 /-- The shared entity placement: the CCD's quality dimensions. -/
 def posE : E → Point 6
-  | .envo00000038 => ![0, 10, 18, 0, 23, 0]
-  | .envo00000053 => ![26, 22, 0, 0, 0, 0]
-  | .envo00000054 => ![0, 0, 9, 8, 37, 0]
-  | .envo00000057 => ![2, 28, 0, 19, 12, 0]
-  | .envo00000058 => ![29, 0, 0, 0, 18, 0]
-  | .envo00000085 => ![0, 0, 0, 35, 11, 8]
-  | .envo00002132 => ![14, 0, 0, 0, 38, 0]
-  | .envo01000106 => ![13, 0, 0, 0, 49, 0]
-  | .envo01000107 => ![10, 0, 10, 0, 43, 0]
+  | .envo00000038 => ![0, 0, 0, 17, 57, 0]
+  | .envo00000053 => ![0, 0, 33, 60, 0, 0]
+  | .envo00000054 => ![0, 91, 0, 0, 0, 0]
+  | .envo00000057 => ![0, 0, 109, 0, 0, 0]
+  | .envo00000058 => ![39, 43, 0, 0, 0, 0]
+  | .envo00000085 => ![0, 45, 0, 0, 25, 0]
+  | .envo00002132 => ![0, 16, 31, 28, 0, 0]
+  | .envo01000106 => ![0, 21, 31, 45, 0, 0]
+  | .envo01000107 => ![0, 19, 44, 31, 0, 0]
 
 def thermoclineMembers : List E := [.envo00002132, .envo01000106, .envo01000107]
 /-- Attention profile of thermocline (total 240). -/
-def wThermocline : Fin 6 → ℕ := ![13, 46, 5, 48, 122, 6]
+def wThermocline : Fin 6 → ℕ := ![24, 41, 43, 81, 51, 0]
 def thermoclineChi : E → Point 6 := weightedChi wThermocline posE
 
 def kThermocline : KonceptN 6 E where
@@ -41,7 +41,7 @@ def kThermocline : KonceptN 6 E where
 
 def diffMarineThermoclineMembers : List E := [.envo01000106, .envo01000107]
 /-- Attention profile of diff::marine thermocline (total 240). -/
-def wDiffMarineThermocline : Fin 6 → ℕ := ![7, 44, 6, 45, 132, 6]
+def wDiffMarineThermocline : Fin 6 → ℕ := ![22, 31, 50, 91, 46, 0]
 def diffMarineThermoclineChi : E → Point 6 := weightedChi wDiffMarineThermocline posE
 
 def kDiffMarineThermocline : KonceptN 6 E where
@@ -50,7 +50,7 @@ def kDiffMarineThermocline : KonceptN 6 E where
 
 def marineThermoclineMembers : List E := [.envo01000106, .envo01000107]
 /-- Attention profile of marine thermocline (total 240). -/
-def wMarineThermocline : Fin 6 → ℕ := ![7, 44, 6, 45, 132, 6]
+def wMarineThermocline : Fin 6 → ℕ := ![22, 31, 50, 91, 46, 0]
 def marineThermoclineChi : E → Point 6 := weightedChi wMarineThermocline posE
 
 def kMarineThermocline : KonceptN 6 E where
@@ -78,8 +78,8 @@ theorem marineThermocline_ccd_envo01000106_envo01000107 :
     SimilarByContrastN (marineThermoclineChi .envo01000106) (marineThermoclineChi .envo01000107) (marineThermoclineChi .envo00000038) := by decide
 
 -- Definition 'marine thermocline = diff::marine thermocline thermocline' FAILED the audit; not certified.
---   ✗ isEssential: unit ENVO:01000106: genus χ (169, 0, 0, 0, 5978, 0) ⊀ (incomparable or reversed) differentia χ (91, 0, 0, 0, 6468, 0); uniform-functional collapse HOLDS (6147 vs 6559)
---   ✗ isEssential: unit ENVO:01000107: genus χ (130, 0, 50, 0, 5246, 0) ⊀ (incomparable or reversed) differentia χ (70, 0, 60, 0, 5676, 0); uniform-functional collapse HOLDS (5426 vs 5806)
+--   ✗ isEssential: unit ENVO:01000106: genus χ (0, 861, 1333, 3645, 0, 0) ⊀ (incomparable or reversed) differentia χ (0, 651, 1550, 4095, 0, 0); uniform-functional collapse HOLDS (5839 vs 6296)
+--   ✗ isEssential: unit ENVO:01000107: genus χ (0, 779, 1892, 2511, 0, 0) ⊀ (incomparable or reversed) differentia χ (0, 589, 2200, 2821, 0, 0); uniform-functional collapse HOLDS (5182 vs 5610)
 
 /-- The uniform depth functional: equal attention to every dimension. -/
 def uniform : DepthFunctional 6 :=

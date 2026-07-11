@@ -132,15 +132,35 @@ def hypernym_edges(entities: list[str], concepts: dict[str, list[str]]):
 # ── position source 1: trained order embeddings ─────────────────────
 
 
+def _closure(edges):
+    """Transitive closure of (child, parent) edges — the correct training
+    signal for order embeddings (direct edges alone leave AUC ~0.7)."""
+    parents = {}
+    for c, p in edges:
+        parents.setdefault(c, []).append(p)
+    out = set()
+    for c in list(parents):
+        stack, seen = list(parents[c]), set()
+        while stack:
+            p = stack.pop()
+            if p in seen:
+                continue
+            seen.add(p)
+            out.add((c, p))
+            stack.extend(parents.get(p, []))
+    return out
+
+
 def train_positions(nodes, edges, seed=SEED) -> dict[str, np.ndarray]:
     torch.manual_seed(seed)
     idx = {n: i for i, n in enumerate(sorted(nodes))}
-    emb = torch.nn.Parameter(torch.rand(len(nodes), DIM) * 0.5 + 0.1)
+    emb = torch.nn.Parameter(torch.rand(len(nodes), DIM) * 0.3 + 0.1)
+    edges = _closure(edges)                    # train on the closure, not direct edges
     pos_pairs = torch.tensor([[idx[a], idx[b]] for a, b in edges])
-    opt = torch.optim.Adam([emb], lr=0.05)
+    opt = torch.optim.Adam([emb], lr=0.1)
     allnodes = list(range(len(nodes)))
     g = torch.Generator().manual_seed(SEED)
-    for _ in range(1500):
+    for _ in range(4000):
         opt.zero_grad()
         lo, hi = emb[pos_pairs[:, 0]], emb[pos_pairs[:, 1]]
         # order-embedding energy: hyponym should dominate hypernym

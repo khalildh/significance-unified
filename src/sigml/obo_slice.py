@@ -220,14 +220,38 @@ def select_defs(o: Onto):
 # ── order-embedding positions ───────────────────────────────────────
 
 
+def transitive_closure(edges):
+    """All (descendant, ancestor) pairs from a set of (child, parent) edges.
+    Order embeddings must be trained on the closure, not just direct edges —
+    training on direct edges alone leaves reconstruction AUC near 0.7; the
+    closure lifts it to ~0.9 (see repr_quality.py)."""
+    parents: dict = {}
+    for c, p in edges:
+        parents.setdefault(c, []).append(p)
+    out = set()
+    for c in list(parents):
+        stack, seen = list(parents[c]), set()
+        while stack:
+            p = stack.pop()
+            if p in seen:
+                continue
+            seen.add(p)
+            out.add((c, p))
+            stack.extend(parents.get(p, []))
+    return out
+
+
 def train_positions(nodes, edges, seed) -> dict[str, np.ndarray]:
+    # transitive-closure training + lr 0.1 / 4k steps reaches reconstruction
+    # AUC ~0.93 at DIM 6 (see repr_quality.py); direct-edge training left it ~0.70
     torch.manual_seed(seed)
     idx = {n: i for i, n in enumerate(sorted(nodes))}
-    emb = torch.nn.Parameter(torch.rand(len(nodes), DIM) * 0.5 + 0.1)
+    emb = torch.nn.Parameter(torch.rand(len(nodes), DIM) * 0.3 + 0.1)
+    edges = transitive_closure(edges)          # train on the closure, not direct edges
     pairs = torch.tensor([[idx[a], idx[b]] for a, b in edges]) if edges else None
-    opt = torch.optim.Adam([emb], lr=0.05)
+    opt = torch.optim.Adam([emb], lr=0.1)
     g = torch.Generator().manual_seed(seed)
-    for _ in range(1200):
+    for _ in range(4000):
         opt.zero_grad()
         lo, hi = emb[pairs[:, 0]], emb[pairs[:, 1]]
         pos = torch.relu(hi - lo).pow(2).sum(1).mean()
@@ -435,7 +459,7 @@ def main(name: str = "cl") -> None:
     n = len(chosen)
     print(f"\nAcross {n} real {cfg['domain']} definitions (majority grade over seeds):")
     print(f"  strict RaiseProd essentiality : {tally['strict']}   "
-          "(≈0 expected — the `functionals_disagree` theorem)")
+          "(~10-14% on a faithful embedding — NOT ≈0; the weak embedding hid this)")
     print(f"  functional grade (Σ-weighted) : {tally['functional']}   "
           "← differentia deeper under equal attention")
     print(f"  neither                       : {tally['fail']}   "
