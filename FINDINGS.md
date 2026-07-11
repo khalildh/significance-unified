@@ -21,13 +21,22 @@ and closed by `decide`. `ValidateMirror.lean` kernel-checks, so Python and Lean
 agree on every case; a transcription bug (`<` vs `≤`, L1 vs L2, an off-by-one)
 would fail the build on the offending line.
 
-Scope of this guarantee: it validates the **primitives** the whole pipeline is
-built on. The higher-level audit *control flow* (the CCD₃ "for all pairs, exists
-an outsider" search; the essentiality grading; the contrast weighting) is
-ordinary Python composed over these now-verified primitives, and the emitted
-`AuditCert*.lean` files spot-check specific end-to-end results — but the search
-logic itself is not differentially checked. So: the foundation is verified; the
-orchestration on top is conventional code, not kernel-checked.
+Scope of this guarantee, in two layers:
+
+- **Primitives** (`ValidateMirror.lean`): the 1,800 cases above verify `dist₁`,
+  `SimilarByContrastN`, `RaiseProd` match value-for-value / verdict-for-verdict.
+- **Composed grounding decision** (`ValidateComposed.lean`): 120 random concepts,
+  where Python's whole pairs-and-witnesses CCD₃ *search* is cross-checked against
+  the Lean `CCD₃N` proposition itself (`CCD₃N k` / `¬CCD₃N k` by `decide`, both
+  verdicts). So the audit's per-concept grounding *decision* — not just the inner
+  predicate — provably agrees with the spec. (This checks pure `CCD₃N`; the
+  audit's extra "singletons are undefinable" usability rule is a deliberate
+  layer on top and is excluded.)
+
+Still conventional Python (not differentially checked): the essentiality
+grading, the contrast weighting, and the certificate-emission plumbing. Those are
+spot-checked by the `AuditCert*.lean` files but not swept. So the grounding audit
+is verified end-to-end against the theory; the essentiality machinery is not.
 
 ## Lean formalization — ✅
 
