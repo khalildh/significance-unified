@@ -58,6 +58,13 @@ def main(argv=None) -> int:
         help="[foundation] regenerate the Python≡Lean differential check "
              "(then `lake build`)",
     )
+    pr = sub.add_parser(
+        "repr",
+        help="[diagnostic] measure how faithfully the embedding learns the "
+             "hierarchy",
+    )
+    pr.add_argument("ontology", nargs="?", default="all",
+                    help="cl | envo | all (default: all)")
 
     args = p.parse_args(argv)
     if not args.cmd:
@@ -81,6 +88,10 @@ def main(argv=None) -> int:
     elif args.cmd == "validate":
         import validate
         validate.main()
+    elif args.cmd == "repr":
+        import repr_quality
+        sys.argv = ["repr_quality", args.ontology]
+        repr_quality.main()
     return 0
 
 
