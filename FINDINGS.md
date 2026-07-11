@@ -48,27 +48,18 @@ theorems, not claims. The machine-generated certificates (`AuditCert*.lean`) are
 kernel-checked: a learned/parsed structure inhabiting a spec type, proofs closed
 by `decide`.
 
-## Does the *representation* learn the hierarchy? — 🟡 (weak as used; fixable)
+## Does the *representation* learn the hierarchy? — ✅ (fixed)
 
-`sigml repr`. Every audit consumes positions from an order embedding, and the
-embedding's faithfulness was never measured until now. It should have been:
+`sigml repr`. The audits originally trained on direct is-a edges only, which
+left reconstruction AUC ~0.7 (weak) — and scaling capacity did not help. The fix
+was training on the **transitive closure** of is-a (the standard order-embedding
+setup) plus proper hyperparameters (lr 0.1, 4k steps): the audit trainers now
+reach **order-property ~0.89, AUC ~0.93** at their own DIM 6. The trainers in
+`wordnet_slice.py` and `obo_slice.py` were switched over, and every audit below
+was **re-run on the faithful representation**.
 
-- **As the audits trained it** (direct is-a edges, ~6-D, ~1.2k steps): weak.
-  Held-out order-property ~0.33–0.45, reconstruction AUC ~0.68–0.74. More
-  dimensions and steps did **not** help — so it was not under-training.
-- **Trained the standard way** (on the transitive closure of is-a, as Vendrov
-  order embeddings require): faithful. AUC jumps to **0.97 (CL) / 0.86 (ENVO)**,
-  order-property to 0.85 (CL). So the representation *can* encode the taxonomy —
-  the audits' trainers were simply misconfigured (direct edges, not closure).
-
-**Consequence:** every empirical result in this repo was computed on a
-demonstrably weak representation (AUC ~0.7). The grounding results survived a
-cross-source control and are the more robust for it; the essentiality results,
-already provisional, ran on weak embeddings and are further undercut. The
-correct next step is to switch the audit trainers to transitive-closure training
-and re-run — until then, treat every number as "computed on a known-weak
-embedding." This is the ML-side analogue of the Python≡Lean gap: measured, not
-assumed, and it was not clean.
+This mattered — see the essentiality entry, where the fix reversed a
+conclusion.
 
 ## Grounding audit (CCD₃ clustering) — ✅
 
@@ -79,19 +70,27 @@ so the result is attributable to the taxonomy, not the embedding. Failures
 concentrate in heterogeneous ("wastebasket") families, which is the right
 behavior. This is the OntoClean-style use case, with proved criteria. Trust it.
 
-## Essentiality grades on real definitions — 🟡
+## Essentiality grades on real definitions — 🟡 (a prior claim ❌ reversed)
 
 `sigml obo cl|envo`. Grades OBO logical definitions `T = genus ∩ (R some F)` as
-strict / functional / neither. Runs, is reproducible, and scales to hundreds of
-definitions across two domains. **But the metric has known confounds** and the
-numbers should not be treated as settled:
-- Strict `RaiseProd` is near-unreachable *by construction* (the
-  `functionals_disagree` theorem), so "0 strict" is the theorem, not data.
-- The functional bar is near-random at scale (~83% of definitions are
-  seed-noise, not a classification).
-- The whole grade rests on the same commensuration machinery the two-scale
-  probe showed to be unsound across incommensurable genus/differentia — so these
-  numbers deserve the same case-by-case audit before being trusted.
+strict / functional / neither.
+
+❌ **Reversed by the representation fix.** On the old weak embedding, strict
+`RaiseProd` essentiality came out ≈0, and this repo previously argued that was
+forced by the `functionals_disagree` theorem — "the theorem, not biology." That
+was **wrong**: re-run on the faithful (closure-trained, AUC ~0.93) embedding,
+strict essentiality holds for **~30–40 / 300 CL definitions and ~10 / 71 ENVO
+(~10–14%)**, stable across runs. The near-zero was an artifact of the weak
+representation, not a structural impossibility. A real fraction of learned,
+real-ontology definitions *do* satisfy strict essentiality.
+
+Still 🟡, for the reasons that remain true:
+- The remaining ~40% functional / ~47% neither split still leans on the
+  commensuration machinery, and most non-strict definitions are seed-noisy.
+- The `R some F` differentia-membership model is a confound, and the two-scale
+  probe (below) showed aggregate essentiality numbers need case-by-case checking
+  before they are trusted. The ~13% strict figure deserves that audit too — but
+  the qualitative reversal (≈0 → double digits) is robust and stands.
 
 ## Two-scale Definition-Diamond probe — ⏳ (one sub-claim ❌ retracted)
 
