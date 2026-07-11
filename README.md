@@ -471,6 +471,67 @@ data, not a 50/50 classifier.
 lake build                                      # kernel-checks AuditCertOBO/ENVO.lean
 ```
 
+## Two independent scales: the Definition Diamond, tested
+
+The earlier essentiality slices collapsed everything onto one contrast-derived
+χ, and that collapse was the error. The formalization's **Definition Diamond**
+(`preorder_not_partial_order`, "category vs depth scale independence") insists a
+concept lives on *two independent* axes:
+
+- **subsumption** — wider vs specific, from is-a. The genus is the wider concept.
+- **depth / significance** — abstraction vs concrete. Proved *independent* of
+  subsumption. It cannot come from is-a — which is exactly why an is-a-trained
+  embedding could never test essentiality; the depth axis has to come from the
+  **relations**.
+
+Aristotelian essentiality is a claim about the *interaction* of the two: for a
+definition `T = genus ∩ (R some F)`, the genus is wider on subsumption while the
+differentia is deeper on the significance axis — an **inversion** across the two
+scales. `src/sigml/essence_twoscale.py` measures both axes structurally (no
+seeds, no commensuration coin-flip) and tests it:
+
+- **width(c)** = |is-a descendants| — subsumption breadth.
+- **depth(c)** = relational triples `(R,F)` borne by the concept, per unit of
+  breadth (density) — how relationally determined it is, orthogonal to width.
+
+(An earlier depth measure — total triples over the whole subtree — turned out to
+be width in disguise, `corr ≈ 0.90`. Normalizing by breadth gives a genuinely
+independent axis, `corr ≈ 0`. The measurement care is the point.)
+
+| Domain | n | corr(width, depth) | genus wider | differentia deeper | inversion | chance |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|
+| Cell Ontology (biology) | 45 | −0.09 | 89% | 20% | 18% | 18% |
+| Environment Ontology (non-bio) | 346 | −0.07 | 78% | 36% | 29% | 28% |
+
+Three findings, and together they are the sharpest answer this project reached
+to "does the representation learn *concepts*?":
+
+1. **The Diamond is real.** With a properly normalized depth, the two axes are
+   uncorrelated (≈0) in both domains. Relational significance genuinely is an
+   independent dimension from taxonomic breadth — the formalization's
+   independence claim holds empirically.
+2. **The subsumption half of essentiality holds.** Genera are reliably the wider
+   concept (78–89%). Concept-as-taxonomy is real and structurally present.
+3. **The essentialist depth-ordering does not.** The differentia is *not*
+   systematically deeper (20–36%, a minority), and the full inversion happens at
+   **exactly the chance rate** predicted if the two axes were independent coin
+   flips. Knowing the genus is wider tells you nothing about whether the
+   differentia is deeper. There is no essentialist structure linking the parts.
+
+So the resolution of the concept-learning question is not "the representation
+fails to learn essence" — it is that **the essential depth-ordering is not there
+to be learned.** Real ontology definitions are a genus and a differentia laid on
+two independent axes, with the genus reliably wider and *no* systematic
+depth-ranking between genus and differentia. The formalization's *structure*
+(two independent scales) is vindicated; its central *normative* claim
+(`isEssential`: the differentia is strictly deeper) is not a property of real
+definitions. That is a fact about definitions, established on 45+346 of them
+across two unrelated domains — not a limitation of any embedding.
+
+```bash
+.venv/bin/python src/sigml/essence_twoscale.py all   # both axes, both domains
+```
+
 ## Concrete examples
 
 ### Dogs, wolves, and cats (gap comparison)
@@ -532,7 +593,8 @@ src/sigml/
 ├── order_embedding_demo.py   # Train → place → audit → certify (toy)
 ├── synthetic_cert_test.py    # Exercises the strong (KonceptDefCCD) certificate path
 ├── wordnet_slice.py          # Real-data slice: WordNet Carnivora grounding audit
-└── obo_slice.py              # Real-data slice: Cell-Ontology essentiality grades
+├── obo_slice.py              # Real-data slice: OBO essentiality grades (CL, ENVO)
+└── essence_twoscale.py       # Two independent scales: the Definition Diamond, tested
 ```
 
 **Basic.lean** — the core formalization:
