@@ -95,14 +95,30 @@ assuming*:
    (AUC 0.94), strict essentiality is **rare but real: ~1–3%** across both
    domains, stable across runs.
 
-So the settled qualitative claim: on a faithful, commensurable embedding of real
-ontology definitions, strict product-order essentiality holds for a small but
-nonzero fraction (~1–3%); the overwhelming majority are marker-refinement
-definitions that do not exhibit strict depth-dominance. Still 🟡 because the exact
-figure and the functional/neither remainder deserve the case-by-case audit the
-two-scale work taught us to demand — but the shape (rare, nonzero, embedding-
-scope-sensitive) is robust. The audit still trains slice-local by default;
-global-by-default is the recommended follow-up.
+And then the case-by-case audit (`sigml audit-strict`, i.e.
+`python src/sigml/audit_strict.py`) dissolved even the ~1–3%. Opening every
+definition that passes strict on the global embedding:
+
+- The "~1–3%" were **plurality**-strict, not robustly strict — each passes strict
+  in only 2–3 of 6 seeds (a bare plurality that the grade rounds up).
+- Under a real robustness bar (strict in a majority of seeds **and**
+  non-degenerate), **zero** survive — in *both* domains.
+- Every survivor is **cross-branch** (differentia filler a GO process / PATO
+  quality / PO plant-part, in a different branch than the genus) and lifts on
+  only 1–2 dimensions — precisely the incommensurable cases the two-scale work
+  already flagged as unreliable.
+
+**Settled conclusion (case-audited, not aggregate):** on a faithful,
+commensurable embedding, strict product-order essentiality does **not** robustly
+hold for any real definition. The number's journey — ≈0 (weak embedding, *wrong*
+reason) → ~10% (slice-local inflation) → ~1–3% (plurality noise) → **0 robust
+(case-audited)** — is the whole lesson of this project in one line: every
+aggregate figure here moved when measured more carefully, and only the
+case-level check was stable. So the formalization's `isEssential` (strict depth-
+dominance) is a coherent, machine-checkable ideal that real ontology definitions
+do not satisfy — a clean negative result, finally trustworthy because it was
+checked at the case level. (The audit still trains slice-local by default;
+global + case-audit is the honest configuration.)
 
 ## Two-scale Definition-Diamond probe — ⏳ (one sub-claim ❌ retracted)
 
