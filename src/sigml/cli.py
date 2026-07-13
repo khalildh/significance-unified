@@ -65,6 +65,13 @@ def main(argv=None) -> int:
     )
     pr.add_argument("ontology", nargs="?", default="all",
                     help="cl | envo | all (default: all)")
+    pa = sub.add_parser(
+        "audit-strict",
+        help="[diagnostic] case-audit the strict-essentiality survivors "
+             "(global embedding)",
+    )
+    pa.add_argument("ontology", nargs="?", default="cl",
+                    help="cl | envo (default: cl)")
 
     args = p.parse_args(argv)
     if not args.cmd:
@@ -92,6 +99,10 @@ def main(argv=None) -> int:
         import repr_quality
         sys.argv = ["repr_quality", args.ontology]
         repr_quality.main()
+    elif args.cmd == "audit-strict":
+        import audit_strict
+        sys.argv = ["audit_strict", args.ontology]
+        audit_strict.main()
     return 0
 
 
