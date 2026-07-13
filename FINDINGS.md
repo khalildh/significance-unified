@@ -108,9 +108,20 @@ definition that passes strict on the global embedding:
   only 1–2 dimensions — precisely the incommensurable cases the two-scale work
   already flagged as unreliable.
 
-**Settled conclusion (case-audited, not aggregate):** on a faithful,
+**Raising the dimension only strengthens this** (`python src/sigml/dim_sweep.py`).
+Strict `RaiseProd` requires the differentia to dominate the genus on *every*
+dimension, so it gets monotonically harder as dimensions grow — and the audit's
+low DIM 6 was the *favorable* case, not a limitation. Sweeping the global
+embedding: dim 6 → 12 → 24 → 48 raises faithfulness (AUC 0.94 → 0.98) while
+strict-plurality falls 17 → 1 → 0 → 0 and even the functional grade collapses
+(115 → 28, the rest to "neither"). On the most faithful embedding strict
+essentiality is exactly 0. So the low-dim strict passes were an artifact of few
+constraints, and the negative result holds harder the better the representation.
+
+**Settled conclusion (case-audited, dimension-swept):** on a faithful,
 commensurable embedding, strict product-order essentiality does **not** robustly
-hold for any real definition. The number's journey — ≈0 (weak embedding, *wrong*
+hold for any real definition, and higher-fidelity embeddings make it rarer, not
+commoner. The number's journey — ≈0 (weak embedding, *wrong*
 reason) → ~10% (slice-local inflation) → ~1–3% (plurality noise) → **0 robust
 (case-audited)** — is the whole lesson of this project in one line: every
 aggregate figure here moved when measured more carefully, and only the
