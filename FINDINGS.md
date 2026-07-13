@@ -121,7 +121,27 @@ constraints, and the negative result holds harder the better the representation.
 **Settled conclusion (case-audited, dimension-swept):** on a faithful,
 commensurable embedding, strict product-order essentiality does **not** robustly
 hold for any real definition, and higher-fidelity embeddings make it rarer, not
-commoner. The number's journey — ≈0 (weak embedding, *wrong*
+commoner.
+
+⚠️ **External-validity limitation (important — do not overread the negative
+result).** Both test ontologies (CL, ENVO) are OBO Foundry, built with the *same*
+compositional `genus ∩ (R some F)` methodology — two dialects of one engineering
+tradition, not independent samples of "how concepts are defined." So the
+"cross-domain" agreement is weaker than it sounds. More deeply: engineered
+scientific ontologies deliberately encode necessary-and-sufficient *compositional*
+conditions, **not** Aristotelian explanatory depth — so "no depth-ordering in OBO"
+is close to true *by design*. The essentiality ideal (`isEssential`) is a claim
+about commonsense / mental concept-formation (Man = Rational Animal), which is
+precisely what OBO does not contain. And that kind of concept cannot be tested
+with this pipeline: essentiality needs machine-readable genus + differentia, and
+general words don't carry it (WordNet is is-a only; dictionaries/glosses are free
+text). The only data with the required structure is engineered ontologies — the
+ones least likely to show the effect. **Honest scope:** the negative result is
+"OBO-style engineered definitions don't exhibit strict depth-ordering," *not* "no
+concepts do." The formalization's motivating commonsense examples have never been
+tested against learned data. Whether depth-ordering appears in general/commonsense
+concepts is **open and untested** — and hard to test, because the concepts that
+might have it are the ones without machine-readable differentiae. The number's journey — ≈0 (weak embedding, *wrong*
 reason) → ~10% (slice-local inflation) → ~1–3% (plurality noise) → **0 robust
 (case-audited)** — is the whole lesson of this project in one line: every
 aggregate figure here moved when measured more carefully, and only the
