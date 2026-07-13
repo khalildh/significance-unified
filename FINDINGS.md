@@ -75,22 +75,34 @@ behavior. This is the OntoClean-style use case, with proved criteria. Trust it.
 `sigml obo cl|envo`. Grades OBO logical definitions `T = genus ∩ (R some F)` as
 strict / functional / neither.
 
-❌ **Reversed by the representation fix.** On the old weak embedding, strict
-`RaiseProd` essentiality came out ≈0, and this repo previously argued that was
-forced by the `functionals_disagree` theorem — "the theorem, not biology." That
-was **wrong**: re-run on the faithful (closure-trained, AUC ~0.93) embedding,
-strict essentiality holds for **~30–40 / 300 CL definitions and ~10 / 71 ENVO
-(~10–14%)**, stable across runs. The near-zero was an artifact of the weak
-representation, not a structural impossibility. A real fraction of learned,
-real-ontology definitions *do* satisfy strict essentiality.
+**Strict essentiality depends heavily on the embedding — three regimes**
+(`sigml obo`, then `python src/sigml/embed_scope.py`):
 
-Still 🟡, for the reasons that remain true:
-- The remaining ~40% functional / ~47% neither split still leans on the
-  commensuration machinery, and most non-strict definitions are seed-noisy.
-- The `R some F` differentia-membership model is a confound, and the two-scale
-  probe (below) showed aggregate essentiality numbers need case-by-case checking
-  before they are trusted. The ~13% strict figure deserves that audit too — but
-  the qualitative reversal (≈0 → double digits) is robust and stands.
+| representation | strict `RaiseProd` (CL /300) | reading |
+|---|:---:|---|
+| weak (direct-edge, AUC ~0.7) | ≈0 | artifact of a bad embedding |
+| faithful, **slice-local** (AUC ~0.93) | ~27–40 (~10%) | inflated by the local frame |
+| faithful, **global** (AUC ~0.94, shared frame) | **~3–6 (~1–2%)** | the honest figure |
+
+Two corrections fell out of this, both the result of *measuring instead of
+assuming*:
+1. The original "≈0, it's the `functionals_disagree` theorem" was wrong — it was
+   the weak embedding. Strict essentiality is **not** structurally impossible.
+2. But the "~10–14%" from the first faithful re-run was **also** wrong — the
+   slice-local embedding put each genus and its differentia in a local frame that
+   inflated the count. Trained globally on the full ontology (one shared
+   coordinate system ≈ the CCD/commensurability precondition), equally faithful
+   (AUC 0.94), strict essentiality is **rare but real: ~1–3%** across both
+   domains, stable across runs.
+
+So the settled qualitative claim: on a faithful, commensurable embedding of real
+ontology definitions, strict product-order essentiality holds for a small but
+nonzero fraction (~1–3%); the overwhelming majority are marker-refinement
+definitions that do not exhibit strict depth-dominance. Still 🟡 because the exact
+figure and the functional/neither remainder deserve the case-by-case audit the
+two-scale work taught us to demand — but the shape (rare, nonzero, embedding-
+scope-sensitive) is robust. The audit still trains slice-local by default;
+global-by-default is the recommended follow-up.
 
 ## Two-scale Definition-Diamond probe — ⏳ (one sub-claim ❌ retracted)
 
